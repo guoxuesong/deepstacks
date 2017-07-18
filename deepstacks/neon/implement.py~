@@ -39,7 +39,7 @@ def slice_handler(network,flags,stacks,this_model):
     raise NotImplementedError
 
 def maxpool_handler(network,flags,stacks,this_model):
-    num_filters=flags['num_filters']
+    #num_filters=flags['num_filters']
     conv_stride=flags['stride'] if 'stride' in flags else 0
 
     layername=flags['layername'] if 'layername' in flags else None
@@ -57,7 +57,7 @@ def maxpool_handler(network,flags,stacks,this_model):
         )))
     return network,paramlayers
 def meanpool_handler(network,flags,stacks,this_model):
-    num_filters=flags['num_filters']
+    #num_filters=flags['num_filters']
     conv_stride=flags['stride'] if 'stride' in flags else 0
 
     layername=flags['layername'] if 'layername' in flags else None
