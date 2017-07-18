@@ -9,7 +9,7 @@ from deepstacks.macros import *
 from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
 
 def build_mlp(input_var=None):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    l_in = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                      input_var=input_var)
 
     network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
@@ -35,7 +35,7 @@ def build_mlp(input_var=None):
 
 def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
                      drop_hidden=.5):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    l_in = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                      input_var=input_var)
     network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
         (0,0,0,0,0,0,{'layer':(lasagne.layers.DropoutLayer,curr_layer,{'p':drop_input})}) if drop_input else (0,),
@@ -49,7 +49,9 @@ def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
 
 
 def build_cnn(input_var=None):
-    network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+
+    # deepstacks require shape=(500, 1, 28, 28) instead of shape=(None, 1, 28, 28)
+    network = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                         input_var=input_var)
     network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(network,(
 

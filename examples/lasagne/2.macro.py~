@@ -2,9 +2,9 @@
 
 from mnist import *
 
-import stacked
-from stacked.macros import *
-from stacked.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
+import deepstacks
+from deepstacks.macros import *
+from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
 
 # Macro 1 dropout: connect current layer to a DropoutLayer with p=p
 def dropout(p):
@@ -14,7 +14,7 @@ def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
 
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(l_in,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
 	# call macro dropout, this looks cleaner
         (dropout,0.2),
         (0,500,0,0,0,0,{'dense'}),
@@ -41,7 +41,7 @@ def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
                      drop_hidden=.5):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(l_in,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
         (dropout_ifneed,drop_input),
         (myloop,depth,(
             (0,width,0,0,0,0,{'dense'}),
@@ -55,7 +55,7 @@ def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
 def build_cnn(input_var=None):
     network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                         input_var=input_var)
-    network,stacks,layer,errors,watchpoints=stacked.lasagne.build_network(network,(
+    network,stacks,layer,errors,watchpoints=deepstacks.lasagne.build_network(network,(
         (0,32,5,1,0,0,{}),
         (0,0,2,2,0,0,{'maxpool'}),
         (0,32,5,1,0,0,{}),

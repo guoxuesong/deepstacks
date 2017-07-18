@@ -12,7 +12,7 @@ def dropout(p):
     return ((0,0,0,0,0,0,{'layer':(lasagne.layers.DropoutLayer,curr_layer,{'p':p})}),)
 
 def build_cnn(input_var=None):
-    network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    network = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                         input_var=input_var)
     network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(network,(
         (0,32,5,1,0,0,{}),

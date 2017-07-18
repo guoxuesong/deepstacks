@@ -4,9 +4,9 @@
 
 from mnist import *
 
-import stacked
-from stacked.macros import *
-from stacked.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
+import deepstacks
+from deepstacks.macros import *
+from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
 
 def dropout(p):
     return ((0,0,0,0,0,0,{'layer':(lasagne.layers.DropoutLayer,curr_layer,{'p':p})}),)
@@ -14,7 +14,7 @@ def dropout(p):
 def build_cnn(input_var=None):
     network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                         input_var=input_var)
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(network,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(network,(
         (0,32,5,1,0,0,{}),
         (0,0,2,2,0,0,{'maxpool'}),
         (0,32,5,1,0,0,{}),
@@ -83,7 +83,7 @@ def main(model='mlp', num_epochs=500):
     loss = loss.mean()
 
     # MODIFY BEGIN
-    loss = stacked.lasagne.get_loss(errors,watchpoints,loss)[0]
+    loss = deepstacks.lasagne.get_loss(errors,watchpoints,loss)[0]
     # MODIFY END
 
     # We could add some weight decay as well here, see lasagne.regularization.

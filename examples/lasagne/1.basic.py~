@@ -4,15 +4,15 @@
 
 from mnist import *
 
-import stacked
-from stacked.macros import *
-from stacked.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
+import deepstacks
+from deepstacks.macros import *
+from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
 
 def build_mlp(input_var=None):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    l_in = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                      input_var=input_var)
 
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(l_in,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
 
         # For any lasagne layer we not wrapped or not wapped well, you can
         # alwayse use (0,0,0,0,0,0,{'layer':(layer,arg1,arg2,...,kwargs)})
@@ -35,9 +35,9 @@ def build_mlp(input_var=None):
 
 def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
                      drop_hidden=.5):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    l_in = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                      input_var=input_var)
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(l_in,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(l_in,(
         (0,0,0,0,0,0,{'layer':(lasagne.layers.DropoutLayer,curr_layer,{'p':drop_input})}) if drop_input else (0,),
         (loop,depth,(
             (0,width,0,0,0,0,{'dense'}),
@@ -49,9 +49,9 @@ def build_custom_mlp(input_var=None, depth=2, width=800, drop_input=.2,
 
 
 def build_cnn(input_var=None):
-    network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    network = lasagne.layers.InputLayer(shape=(500, 1, 28, 28),
                                         input_var=input_var)
-    network,stacks,layers,errors,watchpoints=stacked.lasagne.build_network(network,(
+    network,stacks,layers,errors,watchpoints=deepstacks.lasagne.build_network(network,(
 
         # Conv2DLayer num_filters=32 filter_size=5 stride=1
         (0,32,5,1,0,0,{}),
