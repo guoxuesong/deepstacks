@@ -13,12 +13,19 @@ def fields(a):
             line=line+({},)
         while len(line)<7:
             line=line[:-1]+(0,line[-1])
-        if type(line[-1])==set:
-            flags={}
-            for k in line[-1]:
-                flags[k]=True
-        else:
-            flags=line[-1]
+
+        # line[-1] in a maybe same if functions in macros not write carefully.
+        # return value of 
+        #
+        # def foo(m={})
+        #     return m
+        # 
+        # is same object
+
+        flags={}
+        for k in line[-1]: 
+            flags[k]=line[-1][k]
+
         if line[1]:
             if type(line[1])==tuple:
                 flags['reshape']=line[1]

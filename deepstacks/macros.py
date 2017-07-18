@@ -11,15 +11,15 @@ def macros(l):
             res+=(a,)
     return res
 
-def ln(k,name=0,m={}):
-    return ((k,0,0,0,name,0,m),)
+def ln(k,name=0,m=None):
+    return ((k,0,0,0,name,0,m or {}),)
 
-def push(k,name,m={}):
-    return ((k,0,0,0,name,0,m),)
+def push(k,name,m=None):
+    return ((k,0,0,0,name,0,m or {}),)
 def pop(name):
     return ((0,0,0,0,0,0,{'pop':name}),)
 
-def roll(f,n,d=1,inscale=1.0,outscale=1.0,w=1,h=1,m={}):
+def roll(f,n,d=1,inscale=1.0,outscale=1.0,w=1,h=1,m=None):
     res=()
     first=True
     for i in range(n):
@@ -27,7 +27,7 @@ def roll(f,n,d=1,inscale=1.0,outscale=1.0,w=1,h=1,m={}):
                 (0,(f,f**i,w*h) if i!=n-1 else (int(f*inscale+0.5),f**i,w*h),0, 0,0,0,{}),
                 (0,f*d   ,1, 1,0,0,{}),
                 (0,f*d   ,1, 1,0,0,{}),
-                (0,int(f*outscale+0.5) if first else f,1, 1,0,0,m if first else {}),
+                (0,int(f*outscale+0.5) if first else f,1, 1,0,0,(m or {}) if first else {}),
                 )+res
         first=False
     res+=(
@@ -93,7 +93,7 @@ def swwae_unpooling(f,imagesize,poolsize,where,what):
                 0, 0,0,0,{'op':lambda x,y:x*y}),
         )
 
-def inception(nfilters,name=0,p=0,m={}):
+def inception(nfilters,name=0,p=0):
     return (
             (0,0,3,1,0,0,{'maxpool'}),
             (0,nfilters[0],1,1,0,0,{}),

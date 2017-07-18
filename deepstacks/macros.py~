@@ -73,15 +73,18 @@ def swwae_pooling(f,imagesize,poolsize,where,what,beta=3):
     return (
         (0,(f,imagesize/poolsize,poolsize,imagesize/poolsize,poolsize),
                 0, 0,0,0,{}),
-        (0,0, 0, 0,0,0,{'dimshuffle':(0,1,2,4,3,5)}),
-        (0,0,0,0,where,0,{'argmax':(4,5),'beta':3}),
+        #(0,0, 0, 0,0,0,{'dimshuffle':(0,1,2,4,3,5)}),
+        #(0,0,0,0,where,0,{'argmax':(4,5),'beta':3}),
+        (0,0,0,0,where,0,{'argmax':(3,5),'beta':3}),
         (3,0,poolsize,poolsize,what,0,{'maxpool'}),
         )
 def swwae_unpooling(f,imagesize,poolsize,where,what):
     return (
+        #(where,0,
+        #        0, 0,0,0,{'unargmax':(4,5),'shape':(None,f,imagesize/poolsize,imagesize/poolsize,poolsize,poolsize)}),
+        #(0,0, 0, 0,0,0,{'dimshuffle':(0,1,2,4,3,5)}),
         (where,0,
-                0, 0,0,0,{'unargmax':(4,5),'shape':(None,f,imagesize/poolsize,imagesize/poolsize,poolsize,poolsize)}),
-        (0,0, 0, 0,0,0,{'dimshuffle':(0,1,2,4,3,5)}),
+                0, 0,0,0,{'unargmax':(3,5),'shape':(None,f,imagesize/poolsize,imagesize/poolsize,poolsize,poolsize)}),
         (0,(f,imagesize,imagesize),
                 0, 0,0,0,{}),
         (what,0,
