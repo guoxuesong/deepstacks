@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+# coding:utf-8
+# vi:tabstop=4:shiftwidth=4:expandtab:sts=4
+
+from .implement import *
+from ..macro import macros
+from ..field import fields
+
+register_macro_handler(fields)
+register_macro_handler(macros)
