@@ -12,3 +12,4 @@ except ImportError:
 else:
     from . import neon
 
+from .stacked import curr_layer,curr_stacks,curr_flags,curr_model

@@ -91,6 +91,9 @@ def num_filters_handler(network,flags,stacks,this_model):
 
     num_filters=flags['num_filters']
     conv_stride=flags['stride'] if 'stride' in flags else 0
+    layername=flags['layername'] if 'layername' in flags else None
+    filter_size=flags['filter_size'] if 'filter_size' in flags else 0
+
     if conv_stride==0 or conv_stride==1:
         pad='same'
     elif conv_stride>0:
@@ -131,9 +134,6 @@ def num_filters_handler(network,flags,stacks,this_model):
 #        else:
 #            ww=init(gain='relu')
 #        bb=lasagne.init.Constant(0.0)
-
-    layername=flags['layername'] if 'layername' in flags else None
-    filter_size=flags['filter_size'] if 'filter_size' in flags else 0
 
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     dim=2

@@ -6,7 +6,10 @@ import theano
 import theano.tensor as T
 import lasagne
 
+import math
 from ..stacked import *
+from .curry import *
+from .argmax import *
 
 def replace_input(layer,m,done=set({})):
     if layer in m:
@@ -217,6 +220,9 @@ def num_filters_handler(network,flags,stacks,this_model):
     num_filters0=flags['num_filters']
     num_filters=flags['num_filters']
     conv_stride=flags['stride'] if 'stride' in flags else 0
+    layername=flags['layername'] if 'layername' in flags else None
+    filter_size=flags['filter_size'] if 'filter_size' in flags else 0
+
     if conv_stride==0 or conv_stride==1:
         pad='same'
     elif conv_stride>0:
@@ -256,9 +262,6 @@ def num_filters_handler(network,flags,stacks,this_model):
         else:
             ww=init(gain='relu')
         bb=lasagne.init.Constant(0.0)
-
-    layername=flags['layername'] if 'layername' in flags else None
-    filter_size=flags['filter_size'] if 'filter_size' in flags else 0
 
     dim=len(lasagne.layers.get_output_shape(network))-2
     if 'maxpool' in flags or 'meanpool' in flags:
@@ -528,3 +531,9 @@ register_flag_handler('meanpool',meanpool_handler)
 register_flag_handler('maxpool',maxpool_handler)
 register_flag_handler('slice',slice_handler)
 register_flag_handler('reshape',reshape_handler)
+
+
+def layer_handler(network):
+    print 'output_shape:',lasagne.layers.get_output_shape(network)
+
+register_layer_handler(layer_handler)

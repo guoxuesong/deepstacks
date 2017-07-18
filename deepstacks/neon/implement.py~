@@ -74,7 +74,7 @@ def meanpool_handler(network,flags,stacks,this_model):
         name=layername,
         )))
     return network,paramlayers
-def meanpool_handler(network,flags,stacks,this_model):
+def upscale_handler(network,flags,stacks,this_model):
     raise NotImplementedError
 def num_filters_handler(network,flags,stacks,this_model):
     paramlayers=[]

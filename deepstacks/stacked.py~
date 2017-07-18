@@ -29,6 +29,8 @@ def deep_eval(a,m):
         if type(a)==tuple and (type(a[0])==type(lambda:0) or type(a[0])==type):
             args=[(m[x] if x in m else x) for x in a[1:-1]]
             kwargs=a[-1]
+            if type(kwargs)!=dict:
+                print a
             for k in kwargs:
                 if kwargs[k] in m:
                     kwargs[k]=m[kwargs[k]]
@@ -44,13 +46,13 @@ def deep_eval(a,m):
     return a
 
 def curr_layer():
-    return 'curr_layer'
+    pass
 def curr_stacks():
-    return 'curr_stacks'
+    pass
 def curr_flags():
-    return 'curr_flags'
+    pass
 def curr_model():
-    return 'curr_model'
+    pass
 
 flag_list=[]
 flag_handler={}
@@ -69,6 +71,7 @@ def register_inputs_handler(flag,handler):
     inputs_handler[flag]=handler
 concat_handler=None
 def register_concat_handler(handler):
+    global concat_handler
     concat_handler=handler
 
 def layer_handler(network,flags,stacks,this_model):
@@ -110,8 +113,15 @@ def register_network_wrapper(f):
     global network_wrapper 
     network_wrapper=f
 
+layer_handler=None
+def register_layer_handler(f):
+    global layer_handler 
+    layer_handler=f
+
 def build_network(network,a,m={},**kwargs):
     # a=((INPUTS,flags),)*N
+
+    print inputs_handler
 
     this_model=kwargs
     this_model['errors']={}
@@ -134,9 +144,9 @@ def build_network(network,a,m={},**kwargs):
         return all_layers.get_layer(k)
 
     count=0
-    p=0
     for info in a:
         print count,info
+        count+=1
 
         inputs=info[0]
         if type(info[-1])==set or type(info[-1])==dict:
@@ -171,6 +181,10 @@ def build_network(network,a,m={},**kwargs):
                     network,layers=h(network,info[-1],stacks,this_model)
                     paramlayers+=layers
         all_layers.add(network)
+
+        if layer_handler:
+            layer_handler(network)
+        
     stacks['output']=[network]
     if 'finish' in kwargs:
         kwargs['finish'](stacks)
