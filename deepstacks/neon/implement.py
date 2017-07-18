@@ -46,7 +46,7 @@ def maxpool_handler(network,flags,stacks,this_model):
     filter_size=flags['filter_size'] if 'filter_size' in flags else 0
 
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    dim=2
+    #dim=2
     assert filter_size>0
     network=Sequential(layers=(network,Pooling(
         fshape=filter_size,
@@ -64,7 +64,7 @@ def meanpool_handler(network,flags,stacks,this_model):
     filter_size=flags['filter_size'] if 'filter_size' in flags else 0
 
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    dim=2
+    #dim=2
     assert filter_size>0
     network=Sequential(layers=(network,Pooling(
         fshape=filter_size,
@@ -136,7 +136,7 @@ def num_filters_handler(network,flags,stacks,this_model):
 #        bb=lasagne.init.Constant(0.0)
 
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    dim=2
+    #dim=2
 #    if 'maxpool' in flags:
 #        assert filter_size>0
 #        network=Sequential(layers=(network,Pooling(
@@ -159,7 +159,7 @@ def num_filters_handler(network,flags,stacks,this_model):
 #        raise NotImplementedError
 #    else:
 
-    if 'dense' in flags or dim==0:
+    if 'dense' in flags: # or dim==0
         paramlayer = Sequential(layers=Affine(
                 nout=num_filters,
                 init=neon.initializers.GlorotUniform(),

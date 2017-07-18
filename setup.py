@@ -10,7 +10,7 @@ def read(fname):
 
 setup(
     name = "deepstacks",
-    version = "0.0.3",
+    version = "0.0.4",
     author = "Guo Xuesong",
     author_email = "zenothing@hotmail.com",
     description = ("A build_network() for Lasagne and noen."

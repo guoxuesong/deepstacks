@@ -24,7 +24,10 @@ def fields(a):
 
         flags={}
         for k in line[-1]: 
-            flags[k]=line[-1][k]
+            if type(line[-1])==set:
+                flags[k]=True
+            else:
+                flags[k]=line[-1][k]
 
         if line[1]:
             if type(line[1])==tuple:
