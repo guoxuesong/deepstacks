@@ -93,7 +93,7 @@ def swwae_unpooling(f,imagesize,poolsize,where,what):
                 0, 0,0,0,{'op':lambda x,y:x*y}),
         )
 
-def inception(nfilters,name=0,p=0):
+def inception(nfilters,name=0):
     return (
             (0,0,3,1,0,0,{'maxpool'}),
             (0,nfilters[0],1,1,0,0,{}),
