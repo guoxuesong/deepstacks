@@ -130,24 +130,29 @@ def share(group,l,local_vars={},save_vars={},noshare=False):
         tail+=(
                 ('stack:'+var,0,0,0,var,0,{'pop':'stack:'+var}),
                 )
+    if group in share2data:
+        nowatch=True
+    else:
+        nowatch=False
     if l:
         l=macros(l)
         share2data[group]=l
-        nowatch=False
     else:
         l=share2data[group]
-        nowatch=True
     i=0
     for a in l:
-        m=a[-1].copy()
+        if type(a[-1])==dict:
+            m=a[-1].copy()
+        else:
+            m={}
+            a=a+(m,)
         if nowatch and type(m)==dict and 'watch' in m:
             m.pop('watch')
         if flag_const:
             m['const']=True
         if a[-2]==0 and not noshare:
-            res+=(a[:-2]+(group+str(i),m,),)
-        else:
-            res+=(a[:-1]+(m,),)
+            m['sharegroup']=group+":"+str(i)
+        res+=(a[:-1]+(m,),)
         i+=1
     return res+tail
 
@@ -157,10 +162,28 @@ def call(group,local_vars={},save_vars={}):
 def callcopy(group,local_vars={},save_vars={}):
     return share(group,None,local_vars,save_vars,True)
 
+
+runtime_loop_iterators=None
+def set_runtime_loop_iterators(a):
+    global runtime_loop_iterators
+    runtime_loop_iterators=a
+    print 'set_runtime_loop_iterators:',runtime_loop_iterators
+def curr_loop_iterators(n):
+    print 'curr_runtime_loop_iterators:',runtime_loop_iterators
+    return runtime_loop_iterators[-n]
+
+loop_iterators=[]
 def loop(n,l):
+    global loop_iterators
     res=()
+    loop_iterators+=[0]
+    res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators+[])}),)
     for i in range(n):
         res+=macros(l)
+        loop_iterators[-1]+=1
+        res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators+[])}),)
+    loop_iterators=loop_iterators[:-1]
+    res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,None)}),)
     return res
 
 def switch(cond,ltrue,lfalse):

@@ -25,15 +25,19 @@ class Layers(object):
         pass
 
 def deep_eval(a,m):
+    #print 'de:',a
     if type(a)==tuple or type(a)==list:
-        if type(a)==tuple and (type(a[0])==type(lambda:0) or type(a[0])==type):
-            args=[(m[x] if x in m else x) for x in a[1:-1]]
+        if type(a)==tuple and len(a) and (type(a[0])==type(lambda:0) or type(a[0])==type):
+            #print 'de:','callable'
+            if type(a[-1])!=dict:
+                a+=({},)
+            args=[( m[x] if type(x)!=list and  x in m else deep_eval(x,m)) for x in a[1:-1]]
             kwargs=a[-1]
-            if type(kwargs)!=dict:
-                print a
             for k in kwargs:
-                if kwargs[k] in m:
+                if type(kwargs[k])!=list and kwargs[k] in m:
                     kwargs[k]=m[kwargs[k]]
+            kwargs=deep_eval(kwargs,m)
+            #print 'de:',a[0],args,kwargs
             a=a[0](*args,**kwargs)
         else:
             a=type(a)(map(lambda x:deep_eval(x,m),a))
@@ -172,6 +176,8 @@ def build_network(network,a,m={},**kwargs):
             curr_model:this_model
             })
         flags=info[-1]
+
+        print info
 
         for flag in flag_list:
             if flag in flags:

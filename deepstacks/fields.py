@@ -29,9 +29,12 @@ def fields(a):
             else:
                 flags[k]=line[-1][k]
 
-        if line[1]:
+        if line[1] is not None and line[1]!=0:
             if type(line[1])==tuple:
-                flags['reshape']=line[1]
+                if len(line[1])==0 or line[1][0]!=slice:
+                    flags['reshape']=line[1]
+                else:
+                    flags['slice']=line[1]
             elif type(line[1])==slice:
                 flags['slice']=line[1]
             else:

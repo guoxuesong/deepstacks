@@ -25,15 +25,19 @@ class Layers(object):
         pass
 
 def deep_eval(a,m):
+    #print 'de:',a
     if type(a)==tuple or type(a)==list:
-        if type(a)==tuple and (type(a[0])==type(lambda:0) or type(a[0])==type):
-            args=[(m[x] if x in m else x) for x in a[1:-1]]
+        if type(a)==tuple and len(a) and (type(a[0])==type(lambda:0) or type(a[0])==type):
+            #print 'de:','callable'
+            if type(a[-1])!=dict:
+                a+=({},)
+            args=[( m[x] if type(x)!=list and  x in m else deep_eval(x,m)) for x in a[1:-1]]
             kwargs=a[-1]
-            if type(kwargs)!=dict:
-                print a
             for k in kwargs:
-                if kwargs[k] in m:
+                if type(kwargs[k])!=list and kwargs[k] in m:
                     kwargs[k]=m[kwargs[k]]
+            kwargs=deep_eval(kwargs,m)
+            #print 'de:',a[0],args,kwargs
             a=a[0](*args,**kwargs)
         else:
             a=type(a)(map(lambda x:deep_eval(x,m),a))
@@ -118,10 +122,15 @@ def register_layer_handler(f):
     global layer_handler 
     layer_handler=f
 
+runtime_loop_iterators=None
+def set_runtime_loop_iterators(a):
+    global runtime_loop_iterators
+    runtime_loop_iterators=a
+def curr_loop_iterators(n):
+    return runtime_loop_iterators[-n]
+
 def build_network(network,a,m={},**kwargs):
     # a=((INPUTS,flags),)*N
-
-    print inputs_handler
 
     this_model=kwargs
     this_model['errors']={}
@@ -154,6 +163,7 @@ def build_network(network,a,m={},**kwargs):
         else:
             info=info+({},)
 
+        flags=info[-1]
         if type(inputs) == int or type(inputs) == str or type(inputs) == list:
             network=get_layer(inputs)
         elif type(inputs) == tuple:
@@ -173,6 +183,8 @@ def build_network(network,a,m={},**kwargs):
             curr_model:this_model
             })
         flags=info[-1]
+
+        print info
 
         for flag in flag_list:
             if flag in flags:
