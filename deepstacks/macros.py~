@@ -177,11 +177,11 @@ def loop(n,l):
     global loop_iterators
     res=()
     loop_iterators+=[0]
-    res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators.copy())}),)
+    res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators+[])}),)
     for i in range(n):
         res+=macros(l)
         loop_iterators[-1]+=1
-        res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators.copy())}),)
+        res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,loop_iterators+[])}),)
     loop_iterators=loop_iterators[:-1]
     res+=((0,0,0,0,0,0,{'eval':(set_runtime_loop_iterators,None)}),)
     return res

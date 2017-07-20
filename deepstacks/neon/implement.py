@@ -3,10 +3,20 @@
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
 import neon
+import random
 
 from ..stacked import *
 from neon.layers.layer import *
 from neon.layers.container import *
+
+def sequential(layers):
+    a=()
+    for t in layers:
+        if type(t)==Sequential:
+            a+=tuple(t.layers)
+        else:
+            a+=(t,)
+    return Sequential(layers=a)
 
 def concat_handler(layers,flags,stacks,this_model):
     return MergeMultistream(layers=layers,merge="depth")
@@ -17,11 +27,11 @@ def add_handler(layers,flags,stacks,this_model):
 def sub_handler(layers,flags,stacks,this_model):
     if len(layers)>2:
         left=layers[0]
-        right=Sequential(layers=(MergeSum(leayers[1:]),Activation(neon.transforms.Normalizer(divisor=-1))))
+        right=sequential(layers=(MergeSum(leayers[1:]),Activation(neon.transforms.Normalizer(divisor=-1))))
         network=MergeSum(layers=(left,right))
     elif len(layers)==2:
         left=layers[0]
-        right=Sequential(layers=(layers[1],Activation(neon.transforms.Normalizer(divisor=-1))))
+        right=sequential(layers=(layers[1],Activation(neon.transforms.Normalizer(divisor=-1))))
         network=MergeSum(layers=(left,right))
     else:
         network=layers[0]
@@ -33,7 +43,7 @@ register_inputs_handler('add',add_handler)
 register_inputs_handler('sub',sub_handler)
 
 def reshape_handler(network,flags,stacks,this_model):
-    network=Sequential(layers=(network,Reshape(reshape=flags['reshape'])))
+    network=sequential(layers=(network,Reshape(reshape=flags['reshape'])))
     return network,()
 def slice_handler(network,flags,stacks,this_model):
     raise NotImplementedError
@@ -48,7 +58,7 @@ def maxpool_handler(network,flags,stacks,this_model):
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     #dim=2
     assert filter_size>0
-    network=Sequential(layers=(network,Pooling(
+    network=sequential(layers=(network,Pooling(
         fshape=filter_size,
         stride=max(1,conv_stride),
         pad=0,
@@ -66,7 +76,7 @@ def meanpool_handler(network,flags,stacks,this_model):
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     #dim=2
     assert filter_size>0
-    network=Sequential(layers=(network,Pooling(
+    network=sequential(layers=(network,Pooling(
         fshape=filter_size,
         stride=max(1,conv_stride),
         pad=0,
@@ -139,7 +149,7 @@ def num_filters_handler(network,flags,stacks,this_model):
     #dim=2
 #    if 'maxpool' in flags:
 #        assert filter_size>0
-#        network=Sequential(layers=(network,Pooling(
+#        network=sequential(layers=(network,Pooling(
 #            fshape=filter_size,
 #            stride=max(1,conv_stride),
 #            pad=0,
@@ -148,7 +158,7 @@ def num_filters_handler(network,flags,stacks,this_model):
 #            )))
 #    elif 'meanpool' in flags:
 #        assert filter_size>0
-#        network=Sequential(layers=(network,Pooling(
+#        network=sequential(layers=(network,Pooling(
 #            fshape=filter_size,
 #            stride=max(1,conv_stride),
 #            pad=0,
@@ -170,7 +180,7 @@ def num_filters_handler(network,flags,stacks,this_model):
                 constlayer2sharegroup[paramlayer]=sharegroup
             else:
                 layer2sharegroup[paramlayer]=sharegroup
-        network = Sequential(layers=(
+        network = sequential(layers=(
             network,
             paramlayer,
             ))
@@ -178,7 +188,7 @@ def num_filters_handler(network,flags,stacks,this_model):
         #input_shape = lasagne.layers.get_output_shape(network)
         if not 'local' in flags:
             assert filter_size>0
-            paramlayer=Sequential(layers=Conv(
+            paramlayer=sequential(layers=Conv(
                     fshape=(filter_size,filter_size,num_filters),
                     init=neon.initializers.GlorotUniform(),
                     bias=neon.initializers.Constant(0.0),
@@ -193,7 +203,7 @@ def num_filters_handler(network,flags,stacks,this_model):
                     constlayer2sharegroup[paramlayer]=sharegroup
                 else:
                     layer2sharegroup[paramlayer]=sharegroup
-            network = Sequential(layers=(
+            network = sequential(layers=(
                 network,
                 paramlayer,
                 ))
@@ -270,8 +280,12 @@ def equal_handler(network,flags,stacks,this_model):
         delta=network
     else:
         target=get_layer(to)
-        tmp=Sequential(layers=(target,Activation(neon.transforms.Normalizer(divisor=-1))))
-        delta=MergeSum(layers=(network,tmp))
+        if isinstance(target,neon.layers.layer.DataTransform):
+            delta=[network,target]
+        else:
+            assert isinstance(eq,neon.transforms.cost.MeanSquared)
+            tmp=sequential(layers=(target,Activation(neon.transforms.Normalizer(divisor=-1))))
+            delta=MergeSum(layers=(network,tmp))
     cost=GeneralizedCost(eq,name=g)
     #tmp=lasagne.layers.ElemwiseMergeLayer((network,target),eq)
     if 'sum' in flags:
@@ -395,14 +409,18 @@ class LayerSelector(neon.layers.Sequential):
         super(LayerSelector,self).__init__(*args,**kwargs)
 
         self.sharegroup2layers={}
+        self.sharegroup2constlayers={}
         for k in self.layer2sharegroup:
             v=self.layer2sharegroup[k]
             if v not in self.sharegroup2layers:
                 self.sharegroup2layers[v]=[]
+            if v not in self.sharegroup2constlayers:
+                self.sharegroup2constlayers[v]=[]
             self.sharegroup2layers[v]+=[k]
-        self.sharegroup2constlayers={}
         for k in self.constlayer2sharegroup:
             v=self.constlayer2sharegroup[k]
+            if v not in self.sharegroup2layers:
+                self.sharegroup2layers[v]=[]
             if v not in self.sharegroup2constlayers:
                 self.sharegroup2constlayers[v]=[]
             self.sharegroup2constlayers[v]+=[k]
@@ -424,12 +442,14 @@ class LayerSelector(neon.layers.Sequential):
                         if isinstance(layer,Bias):
                             assert not b_done
                             if b:
+                                assert layer.W.shape==b.shape
                                 layer.W=b
                                 layer.dW = layer.be.empty_like(layer.W)
                             b_done=True
                         if isinstance(layer,Linear):
                             assert not W_done
                             if W:
+                                assert layer.W.shape==W.shape
                                 layer.W=W
                                 layer.dW = layer.be.empty_like(layer.W)
                             W_done=True

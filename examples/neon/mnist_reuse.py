@@ -93,16 +93,16 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
         (0,100,0,0,'m_l1',0,{'dense'}),
         (0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b1)}),
         (0,32,0,0,'m_l2',0,{'dense'}),
-        (0,16,0,0,'m_l3',0,{'dense'}),
+        (0,100,0,0,'m_l3',0,{'dense'}),
         (0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b2)}),
         (0,10,0,0,'m_l4',0,{'dense':True,'nonlinearity':Softmax()}),
         (0,0,0,0,0,0,{'layer':b1}),
-        (share, 's',(
+        (share, 'shared',(
             (0,16,0,0,'b1_l1',0,{'dense'}),
             (0,10,0,0,'b1_l2',0,{'dense':True,'nonlinearity':Logistic(shortcut=True),'equal':['target','b1',CrossEntropyBinary()]}),
             )),
         (0,0,0,0,0,0,{'layer':b2}),
-        (share, 's',(
+        (share, 'shared',(
             (0,16,0,0,'b2_l1',0,{'dense'}),
             (0,10,0,0,'b2_l2',0,{'dense':True,'nonlinearity':Logistic(shortcut=True),'equal':['target','b2',CrossEntropyBinary()]}),
             )),

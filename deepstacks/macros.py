@@ -143,6 +143,10 @@ def share(group,l,local_vars={},save_vars={},noshare=False):
     for a in l:
         if type(a[-1])==dict:
             m=a[-1].copy()
+        elif type(a[-1])==set:
+            m={}
+            for t in a[-1]:
+                m[t]=True
         else:
             m={}
             a=a+(m,)

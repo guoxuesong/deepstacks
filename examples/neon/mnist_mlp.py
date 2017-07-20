@@ -92,7 +92,7 @@ inputs = deepstacks.neon.get_inputs(network)
 
 assert tuple(inputs)==('image',)
 
-layers = [network]
+layers = network
 
 # setup optimizer
 optimizer = GradientDescentMomentum(
