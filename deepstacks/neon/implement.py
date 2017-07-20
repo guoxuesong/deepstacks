@@ -161,15 +161,6 @@ def num_filters_handler(network,flags,stacks,this_model):
         init=this_model['init'] if 'init' in this_model else neon.initializers.GlorotUniform()
         if 'init' in flags:
             init=flags['init']
-        #XXX
-#        if nonlinearity==lasagne.nonlinearities.leaky_rectify:
-#            alpha=0.01
-#            ww=init(gain=math.sqrt(2/(1+alpha**2)))
-#        elif nonlinearity==lasagne.nonlinearities.sigmoid:
-#            ww=init()
-#        else:
-#            ww=init(gain='relu')
-#        bb=lasagne.init.Constant(0.0)
 
     #dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     #dim=2

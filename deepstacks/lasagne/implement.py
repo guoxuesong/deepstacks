@@ -262,10 +262,10 @@ def num_filters_handler(network,flags,stacks,this_model):
             if nonlinearity==lasagne.nonlinearities.leaky_rectify:
                 alpha=0.01
                 ww=init(gain=math.sqrt(2/(1+alpha**2)))
-            elif nonlinearity==lasagne.nonlinearities.sigmoid:
-                ww=init()
-            else:
+            elif nonlinearity==lasagne.nonlinearities.rectify:
                 ww=init(gain='relu')
+            else:
+                ww=init()
         bb=lasagne.init.Constant(0.0)
 
     dim=len(lasagne.layers.get_output_shape(network))-2

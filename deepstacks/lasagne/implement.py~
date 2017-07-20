@@ -254,6 +254,8 @@ def num_filters_handler(network,flags,stacks,this_model):
             bb=theano.gradient.disconnected_grad(bb)
     else:
         init=this_model['init'] if 'init' in this_model else lasagne.init.GlorotUniform
+        if 'init' in flags:
+            init=flags['init']
         if 'init_gain' in flags:
             ww=init(gain=flags['init_gain'])
         else:
