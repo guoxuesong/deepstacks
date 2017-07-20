@@ -254,13 +254,18 @@ def num_filters_handler(network,flags,stacks,this_model):
             bb=theano.gradient.disconnected_grad(bb)
     else:
         init=this_model['init'] if 'init' in this_model else lasagne.init.GlorotUniform
-        if nonlinearity==lasagne.nonlinearities.leaky_rectify:
-            alpha=0.01
-            ww=init(gain=math.sqrt(2/(1+alpha**2)))
-        elif nonlinearity==lasagne.nonlinearities.sigmoid:
-            ww=init()
+        if 'init' in flags:
+            init=flags['init']
+        if 'init_gain' in flags:
+            ww=init(gain=flags['init_gain'])
         else:
-            ww=init(gain='relu')
+            if nonlinearity==lasagne.nonlinearities.leaky_rectify:
+                alpha=0.01
+                ww=init(gain=math.sqrt(2/(1+alpha**2)))
+            elif nonlinearity==lasagne.nonlinearities.sigmoid:
+                ww=init()
+            else:
+                ww=init(gain='relu')
         bb=lasagne.init.Constant(0.0)
 
     dim=len(lasagne.layers.get_output_shape(network))-2

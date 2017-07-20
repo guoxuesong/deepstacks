@@ -145,8 +145,8 @@ def main(num_epochs=NUM_EPOCHS):
     all_params = lasagne.layers.get_all_params(l_out)
     # Compute SGD updates for training
     print("Computing updates ...")
-    #updates = lasagne.updates.adagrad(cost, all_params, LEARNING_RATE)
-    updates = lasagne.updates.adamax(cost, all_params, learning_rate=2e-4)
+    updates = lasagne.updates.adagrad(cost, all_params, LEARNING_RATE)
+    #updates = lasagne.updates.adamax(cost, all_params, learning_rate=2e-4)
     # Theano functions for training and computing cost
     print("Compiling functions ...")
     train = theano.function([l_in.input_var, target_values, l_mask.input_var],

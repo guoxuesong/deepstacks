@@ -10,7 +10,7 @@ from recurrent import *
 import deepstacks
 from deepstacks.macros import *
 from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
-from opetaor import *
+from operator import *
 
 #import crossbatch_momentum
 
@@ -65,7 +65,7 @@ def main(num_epochs=NUM_EPOCHS):
                 'mask':l_mask,
                 'hide1':lasagne.layers.InputLayer(shape=(N_BATCH,N_HIDDEN),input_var=T.zeros((N_BATCH,N_HIDDEN))),
                 'hide2':lasagne.layers.InputLayer(shape=(N_BATCH,N_HIDDEN),input_var=T.zeros((N_BATCH,N_HIDDEN))),
-                })
+                },init=lasagne.init.HeUniform)
 
 #    # We're using a bidirectional network, which means we will combine two
 #    # RecurrentLayers, one with the backwards=True keyword argument.

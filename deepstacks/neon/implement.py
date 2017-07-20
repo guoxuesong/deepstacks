@@ -159,6 +159,8 @@ def num_filters_handler(network,flags,stacks,this_model):
     else:
         paramlayer=None
         init=this_model['init'] if 'init' in this_model else neon.initializers.GlorotUniform()
+        if 'init' in flags:
+            init=flags['init']
         #XXX
 #        if nonlinearity==lasagne.nonlinearities.leaky_rectify:
 #            alpha=0.01
@@ -196,7 +198,7 @@ def num_filters_handler(network,flags,stacks,this_model):
     if 'dense' in flags: # or dim==0
         paramlayer = sequential(layers=Affine(
                 nout=num_filters,
-                init=neon.initializers.GlorotUniform(),
+                init=init,
                 bias=neon.initializers.Constant(0.0),
                 activation=nonlinearity))
         if sharegroup:
@@ -214,7 +216,7 @@ def num_filters_handler(network,flags,stacks,this_model):
             assert filter_size>0
             paramlayer=sequential(layers=Conv(
                     fshape=(filter_size,filter_size,num_filters),
-                    init=neon.initializers.GlorotUniform(),
+                    init=init,
                     bias=neon.initializers.Constant(0.0),
                     strides=max(1,conv_stride),
                     pading=pad,

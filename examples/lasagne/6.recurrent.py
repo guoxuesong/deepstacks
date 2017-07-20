@@ -37,9 +37,9 @@ def main(num_epochs=NUM_EPOCHS):
                 ('input',(slice,(curr_loop_iterators,0),(add,(curr_loop_iterators,0),1)),
                     0,0,0,0,{}),
                 (0,(2,),0,0,0,0,{}),
-                (0,N_HIDDEN,0,0,0,0,{'dense','linear'}),
+                (0,N_HIDDEN,0,0,0,0,{'dense':True,'linear':True,'init_gain':1.0}),
                 ('hide1',),
-                (0,N_HIDDEN,0,0,0,0,{'dense','linear'}),
+                (0,N_HIDDEN,0,0,0,0,{'dense':True,'linear':True,'init_gain':1.0}),
                 ((0,2),0,0,0,'hide1next',0,{'add':True,'nonlinearity':lambda x:lasagne.nonlinearities.tanh(theano.gradient.grad_clip(x,-100,100))}),
                 ('mask',(slice,(curr_loop_iterators,0),(add,(curr_loop_iterators,0),1)),
                     0,0,0,0,{}),
@@ -51,9 +51,9 @@ def main(num_epochs=NUM_EPOCHS):
                 ('input',(slice,(sub,(sub,MAX_LENGTH,(curr_loop_iterators,0)),1),(sub,MAX_LENGTH,(curr_loop_iterators,0))),
                     0,0,0,0,{}),
                 (0,(2,),0,0,0,0,{}),
-                (0,N_HIDDEN,0,0,0,0,{'dense','linear'}),
+                (0,N_HIDDEN,0,0,0,0,{'dense':True,'linear':True,'init_gain':1.0}),
                 ('hide2',),
-                (0,N_HIDDEN,0,0,0,0,{'dense','linear'}),
+                (0,N_HIDDEN,0,0,0,0,{'dense':True,'linear':True,'init_gain':1.0}),
                 ((0,2),0,0,0,'hide2next',0,{'add':True,'nonlinearity':lambda x:lasagne.nonlinearities.tanh(theano.gradient.grad_clip(x,-100,100))}),
                 ('mask',(slice,(sub,(sub,MAX_LENGTH,(curr_loop_iterators,0)),1),(sub,MAX_LENGTH,(curr_loop_iterators,0))),
                     0,0,0,0,{}),
@@ -65,7 +65,7 @@ def main(num_epochs=NUM_EPOCHS):
                 'mask':l_mask,
                 'hide1':lasagne.layers.InputLayer(shape=(N_BATCH,N_HIDDEN),input_var=T.zeros((N_BATCH,N_HIDDEN))),
                 'hide2':lasagne.layers.InputLayer(shape=(N_BATCH,N_HIDDEN),input_var=T.zeros((N_BATCH,N_HIDDEN))),
-                })
+                },init=lasagne.init.HeUniform)
 
 #    # We're using a bidirectional network, which means we will combine two
 #    # RecurrentLayers, one with the backwards=True keyword argument.

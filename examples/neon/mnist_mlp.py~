@@ -84,9 +84,9 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
 # setup cost function as CrossEntropy
 cost = GeneralizedCost(costfunc=CrossEntropyBinary())
 
-cost,extra_layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
+#cost,extra_layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
 
-network = Tree([network]+extra_layers) 
+#network = Tree([network]+extra_layers) 
 
 inputs = deepstacks.neon.get_inputs(network)
 
