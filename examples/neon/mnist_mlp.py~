@@ -45,16 +45,16 @@ Examples:
 from neon.callbacks.callbacks import Callbacks
 from neon.data import MNIST
 from neon.initializers import Gaussian
-from neon.layers import GeneralizedCost, Affine
+from neon.layers import GeneralizedCost, Affine, Tree
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum
 from neon.transforms import Rectlin, Logistic, CrossEntropyBinary, Misclassification
 from neon.util.argparser import NeonArgparser
 from neon import logger as neon_logger
 
-import stacked
-from stacked.macros import *
-from stacked.neon import curr_layer,curr_stacks,curr_flags,curr_model
+import deepstacks
+from deepstacks.macros import *
+from deepstacks.neon import curr_layer,curr_stacks,curr_flags,curr_model
 
 # parse the command line arguments
 parser = NeonArgparser(__doc__)
@@ -74,23 +74,23 @@ init_norm = Gaussian(loc=0.0, scale=0.01)
 #          Affine(nout=10, init=init_norm, activation=Logistic(shortcut=True))]
 
 import neon
-l_in = stacked.neon.InputLayer('image')
+l_in = deepstacks.neon.InputLayer('image')
 
-network,stacks,paramlayers,errors,watchpoints=stacked.neon.build_network(l_in,(
+network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,100,0,0,0,0,{'dense'}),
         (0,10,0,0,0,0,{'dense':True,'nonlinearity':Logistic(shortcut=True)}),
         ))
 
-inputs = stacked.neon.get_inputs(network)
+inputs = deepstacks.neon.get_inputs(network)
 
 assert tuple(inputs)==('image',)
 
 # setup cost function as CrossEntropy
 cost = GeneralizedCost(costfunc=CrossEntropyBinary())
 
-cost,layers,tagslice = stacked.neon.get_loss(errors,watchpoints,cost)
+cost,layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
 
-layers = [Tree([network]+layers)]
+layers = Tree([network]+layers)
 
 # setup optimizer
 optimizer = GradientDescentMomentum(

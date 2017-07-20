@@ -45,7 +45,7 @@ Examples:
 from neon.callbacks.callbacks import Callbacks
 from neon.data import MNIST
 from neon.initializers import Gaussian
-from neon.layers import GeneralizedCost, Affine
+from neon.layers import GeneralizedCost, Affine, Tree
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum
 from neon.transforms import Rectlin, Logistic, CrossEntropyBinary, Misclassification
@@ -81,16 +81,18 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
         (0,10,0,0,0,0,{'dense':True,'nonlinearity':Logistic(shortcut=True)}),
         ))
 
-inputs = deepstacks.neon.get_inputs(network)
-
-assert tuple(inputs)==('image',)
-
 # setup cost function as CrossEntropy
 cost = GeneralizedCost(costfunc=CrossEntropyBinary())
 
 cost,layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
 
-layers = [Tree([network]+layers)]
+network = Tree([network]+layers) 
+
+inputs = deepstacks.neon.get_inputs(network)
+
+assert tuple(inputs)==('image',)
+
+layers = [network]
 
 # setup optimizer
 optimizer = GradientDescentMomentum(

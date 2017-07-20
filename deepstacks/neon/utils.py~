@@ -34,6 +34,7 @@ class MulticostZeros(neon.layers.Multicost):
 
 def get_loss(errors,watchpoints,cost0=None):
     errors = ordered_errors(errors)
+    print errors
 
     layers=[]
     costs=[cost0] if cost0 is not None else []
@@ -46,10 +47,11 @@ def get_loss(errors,watchpoints,cost0=None):
         endpos=len(layers)
         tagslice+=[[a[0],slice(beginpos,endpos)]]
 
-    if len(layers)>1:
-        cost = MulticostZeros(costs,layers)
-    else:
-        cost=costs[0]
+    cost = MulticostZeros(costs,layers)
+    #if len(layers)>1:
+    #    cost = MulticostZeros(costs,layers)
+    #else:
+    #    cost=costs[0]
 
     return cost,layers,tagslice
 
@@ -61,9 +63,9 @@ def get_watchslice(watchpoints):
             trainwatch[tag]=errs
         else:
             valwatch[tag]=errs
-    ig,train_values,train_tagslice=get_loss(trainwatch,[])
-    ig,val_values,val_tagslice=get_loss(valwatch,[])
-    return train_values,train_tagslice,val_values,val_tagslice
+    ig,train_layers,train_tagslice=get_loss(trainwatch,[])
+    ig,val_layers,val_tagslice=get_loss(valwatch,[])
+    return train_layers,train_tagslice,val_layers,val_tagslice
 
 def InputLayer(name):
     return neon.layers.layer.DataTransform(neon.transforms.activation.Identity(),name=name)

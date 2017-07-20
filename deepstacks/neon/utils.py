@@ -14,7 +14,7 @@ def ordered_errors(errors,m=None,prefix=''):
         if m is None:
             res+=[[prefix+t,[]]]
             for cost,delta in errors[t]:
-                res[-1]+=[(cost,delta)]
+                res[-1][-1]+=[(cost,delta)]
         else:
             raise NotImplementedError
     return sorted(res,key=lambda x:x[0])
@@ -34,6 +34,7 @@ class MulticostZeros(neon.layers.Multicost):
 
 def get_loss(errors,watchpoints,cost0=None):
     errors = ordered_errors(errors)
+    print errors
 
     layers=[]
     costs=[cost0] if cost0 is not None else []
@@ -46,10 +47,11 @@ def get_loss(errors,watchpoints,cost0=None):
         endpos=len(layers)
         tagslice+=[[a[0],slice(beginpos,endpos)]]
 
-    if len(layers)>1:
-        cost = MulticostZeros(costs,layers)
-    else:
-        cost=costs[0]
+    cost = MulticostZeros(costs,layers)
+    #if len(layers)>1:
+    #    cost = MulticostZeros(costs,layers)
+    #else:
+    #    cost=costs[0]
 
     return cost,layers,tagslice
 

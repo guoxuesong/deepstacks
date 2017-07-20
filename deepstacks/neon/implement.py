@@ -170,7 +170,7 @@ def num_filters_handler(network,flags,stacks,this_model):
                 constlayer2sharegroup[paramlayer]=sharegroup
             else:
                 layer2sharegroup[paramlayer]=sharegroup
-        network  = Sequential(layers=(
+        network = Sequential(layers=(
             network,
             paramlayer,
             ))
@@ -453,6 +453,6 @@ class LayerSelector(neon.layers.Sequential):
         return lto
 
 def network_wrapper(network,stacks,this_model):
-    return LayerSelector(network,layer2sharegroup=this_model['layer2sharegroup'])
+    return LayerSelector(network,layer2sharegroup=this_model['layer2sharegroup'],constlayer2sharegroup=this_model['constlayer2sharegroup'])
 
 register_network_wrapper(network_wrapper)
