@@ -4,7 +4,7 @@ datacheet with stack machine mechanisms.  Support reuse part of model as
 function, and share parameters.
 
 # Philosophy
-Teh philosophy of deepstacks is: thinking using eyes.
+The philosophy of deepstacks is: thinking using eyes.
 
 About 1/3 of human brain is relevant to vision. So if you think using vision,
 you should be at least 50% brighter than who not.
