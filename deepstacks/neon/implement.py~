@@ -26,7 +26,7 @@ class NeonLayers(Layers):
         if layer in network_branch:
             print 'Found branch',layer
             b=network_branch[layer]
-            if branch_notfirst[b]:
+            if b in branch_notfirst:
                 layer=b
             else:
                 branch_notfirst.add(b)

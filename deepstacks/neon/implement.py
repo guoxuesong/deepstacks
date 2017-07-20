@@ -7,7 +7,7 @@ import random
 
 from ..stacked import *
 #from ..stacked import build_network as build_network0
-from neon.layers.layer import Affine,Activation,Linear,BranchNode,GeneralizedCost
+from neon.layers.layer import Affine,Activation,Linear,Bias,BranchNode,GeneralizedCost
 from neon.layers.container import Sequential,Tree,MergeSum,MergeMultistream
 import utils
 
