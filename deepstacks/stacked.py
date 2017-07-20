@@ -13,7 +13,8 @@ class Layers(object):
 
     def get_layer(self,k):
         if type(k)==list and len(k)==1:
-            raise NotImplementedError
+            print 'WARNING: disconnected_grad not implemented.'
+            return k[0]
         if type(k)==int:
             return self.layers[::-1][k]
         if type(k)==list and len(k)>1:
@@ -168,6 +169,9 @@ def build_network(network,a,m={},**kwargs):
                     break
             if network is None:
                 network = concat_handler(layers,info[-1],stacks,this_model)
+        else:
+            print type(inputs)
+            raise Exception
 
         info=info[0:1]+deep_eval(info[1:],{
             curr_stacks:stacks,
@@ -185,6 +189,7 @@ def build_network(network,a,m={},**kwargs):
                     h=flag_handler[flag]
                     network,layers=h(network,info[-1],stacks,this_model)
                     paramlayers+=layers
+        print network
         all_layers.add(network)
 
         if layer_handler:
@@ -195,6 +200,7 @@ def build_network(network,a,m={},**kwargs):
         kwargs['finish'](stacks)
     all_layers.finish()
 
+    print 'network before wrapper:',network
     if network_wrapper:
         network=network_wrapper(network,stacks,this_model)
 

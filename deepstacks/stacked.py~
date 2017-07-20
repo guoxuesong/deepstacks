@@ -13,7 +13,8 @@ class Layers(object):
 
     def get_layer(self,k):
         if type(k)==list and len(k)==1:
-            raise NotImplementedError
+            print 'WARNING: disconnected_grad not implemented.'
+            return k[0]
         if type(k)==int:
             return self.layers[::-1][k]
         if type(k)==list and len(k)>1:
@@ -122,13 +123,6 @@ def register_layer_handler(f):
     global layer_handler 
     layer_handler=f
 
-runtime_loop_iterators=None
-def set_runtime_loop_iterators(a):
-    global runtime_loop_iterators
-    runtime_loop_iterators=a
-def curr_loop_iterators(n):
-    return runtime_loop_iterators[-n]
-
 def build_network(network,a,m={},**kwargs):
     # a=((INPUTS,flags),)*N
 
@@ -175,6 +169,9 @@ def build_network(network,a,m={},**kwargs):
                     break
             if network is None:
                 network = concat_handler(layers,info[-1],stacks,this_model)
+        else:
+            print type(inputs)
+            raise Exception
 
         info=info[0:1]+deep_eval(info[1:],{
             curr_stacks:stacks,
@@ -202,6 +199,7 @@ def build_network(network,a,m={},**kwargs):
         kwargs['finish'](stacks)
     all_layers.finish()
 
+    print 'network before wrapper:',network
     if network_wrapper:
         network=network_wrapper(network,stacks,this_model)
 

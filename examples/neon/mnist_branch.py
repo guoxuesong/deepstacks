@@ -91,15 +91,17 @@ l_in = deepstacks.neon.InputLayer('image')
 l_y = deepstacks.neon.InputLayer('y')
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,100,0,0,'m_l1',0,{'dense'}),
-        (0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b1)}),
+        #(0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b1)}),
         (0,32,0,0,'m_l2',0,{'dense'}),
         (0,16,0,0,'m_l3',0,{'dense'}),
-        (0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b2)}),
+        #(0,0,0,0,0,0,{'layer':(insert_branch_layer,curr_layer,b2)}),
         (0,10,0,0,'m_l4',0,{'dense':True,'nonlinearity':Softmax()}),
-        (0,0,0,0,0,0,{'layer':b1}),
+        ('m_l1',0,0,0,0,0,{}),
+        #(0,0,0,0,0,0,{'layer':b1}),
         (0,16,0,0,'b1_l1',0,{'dense'}),
         (0,10,0,0,'b1_l2',0,{'dense':True,'nonlinearity':Logistic(shortcut=True),'equal':['target','b1',CrossEntropyBinary()]}),
-        (0,0,0,0,0,0,{'layer':b2}),
+        ('m_l3',0,0,0,0,0,{}),
+        #(0,0,0,0,0,0,{'layer':b2}),
         (0,16,0,0,'b2_l1',0,{'dense'}),
         (0,10,0,0,'b2_l2',0,{'dense':True,'nonlinearity':Logistic(shortcut=True),'equal':['target','b2',CrossEntropyBinary()]}),
         ('m_l4',)
@@ -110,7 +112,8 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
 cost = GeneralizedCost(costfunc=CrossEntropyBinary())
 cost,layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
 
-print layers
+print 'network:',network
+print 'extra layers:',layers
 
 network = Tree([network]+layers)
 
@@ -119,7 +122,7 @@ layers = [network]
 inputs = deepstacks.neon.get_inputs(network)
 targets = deepstacks.neon.get_targets(cost)
 
-print inputs,targets
+print 'inputs,targets:',inputs,targets
 #assert tuple(inputs)==('image',)
 
 #p1 = [l_in,

@@ -6,8 +6,32 @@ import neon
 import random
 
 from ..stacked import *
-from neon.layers.layer import *
-from neon.layers.container import *
+#from ..stacked import build_network as build_network0
+from neon.layers.layer import Affine,Activation,Linear,BranchNode,GeneralizedCost
+from neon.layers.container import Sequential,Tree,MergeSum,MergeMultistream
+import utils
+
+network_branch={}
+branch_notfirst=set()
+
+#def build_network(network,a,m={},**kwargs):
+#    network,stacks,paramlayers,errors,watchpoints=build_network0(network,a,m,**kwargs)
+#    network=sequential(layers=network_branch.keys()+[network])
+#    return network,stacks,paramlayers,errors,watchpoints
+
+class NeonLayers(Layers):
+    def get_layer(self,k):
+        layer=super(NeonLayers,self).get_layer(k)
+
+        if layer in network_branch:
+            print 'Found branch',layer
+            b=network_branch[layer]
+            if branch_notfirst[b]:
+                layer=b
+            else:
+                branch_notfirst.add(b)
+        return layer
+register_layers_class(NeonLayers)
 
 def sequential(layers):
     a=()
@@ -170,7 +194,7 @@ def num_filters_handler(network,flags,stacks,this_model):
 #    else:
 
     if 'dense' in flags: # or dim==0
-        paramlayer = Sequential(layers=Affine(
+        paramlayer = sequential(layers=Affine(
                 nout=num_filters,
                 init=neon.initializers.GlorotUniform(),
                 bias=neon.initializers.Constant(0.0),
@@ -300,46 +324,28 @@ def equal_handler(network,flags,stacks,this_model):
     return network,()
 
 def relu_handler(network,flags,stacks,this_model):
-    raise NotImplementedError
-#    relu=this_model['relu']
-#    if type(flags)==dict:
-#        if 'relu' in flags:
-#            nonlinearity=flags['relu']
-#        if nonlinearity==True:
-#            nonlinearity=relu
-#    else:
-#        nonlinearity=relu
-#    if 'shape' in flags:
-#        shape=flags['shape']
-#        if type(shape)==tuple:
-#            shape=list(shape)
-#        if type(shape)==list and shape[0]==None:
-#            shape[0]=lasagne.layers.get_output_shape(network)[0]
-#        network = lasagne.layers.ExpressionLayer(network,nonlinearity,output_shape=shape)
-#    else:
-#        network = lasagne.layers.NonlinearityLayer(network,nonlinearity=nonlinearity)
-#    return network,()
+    assert flags['relu'] is True
+    nonlinearity=this_model['relu'] if 'relu' in this_model else lasagne.nonlinearities.rectify
+    if 'shape' in flags:
+        raise NotImplementedError
+    else:
+        network = sequential(layers=(network,Activation(transform=nonlinearity)))
+    return network,()
 
 def nonlinearity_handler(network,flags,stacks,this_model):
-    raise NotImplementedError
-#    relu=this_model['relu']
-#    if type(flags)==dict:
-#        if 'relu' in flags:
-#            nonlinearity=flags['relu']
-#        if nonlinearity==True:
-#            nonlinearity=relu
-#    else:
-#        nonlinearity=relu
-#    if 'shape' in flags:
-#        shape=flags['shape']
-#        if type(shape)==tuple:
-#            shape=list(shape)
-#        if type(shape)==list and shape[0]==None:
-#            shape[0]=lasagne.layers.get_output_shape(network)[0]
-#        network = lasagne.layers.ExpressionLayer(network,nonlinearity,output_shape=shape)
-#    else:
-#        network = lasagne.layers.NonlinearityLayer(network,nonlinearity=nonlinearity)
-#    return network,()
+    relu=this_model['relu'] if 'relu' in this_model else lasagne.nonlinearities.rectify
+    if type(flags)==dict:
+        if 'nonlinearity' in flags:
+            nonlinearity=flags['nonlinearity']
+        if nonlinearity==True:
+            nonlinearity=relu
+    else:
+        nonlinearity=relu
+    if 'shape' in flags:
+        raise NotImplementedError
+    else:
+        network = sequential(layers=(network,Activation(transform=nonlinearity)))
+    return network,()
 
 def argmax_handler(network,flags,stacks,this_model):
     raise NotImplementedError
@@ -380,9 +386,17 @@ def max_handler(network,flags,stacks,this_model):
 #    network = lasagne.layers.ExpressionLayer(network,curry(lambda axis,beta,x: goroshin_max(x,axis=axis,beta=beta,keepdims=True).astype(theano.config.floatX),axis,flags['beta']), output_shape=shape)
 #    return network,()
 
+def branch_handler(network,flags,stacks,this_model):
+    global network_branch
+    b=BranchNode(name='branch_'+str(flags['branch']))
+    network = sequential(layers=(network,b))
+    network_branch[network]=b
+    return network,()
+
 register_flag_handler('equal',equal_handler)
 register_flag_handler('watch',watch_handler)
 
+register_flag_handler('branch',branch_handler)
 register_flag_handler('relu',relu_handler)
 register_flag_handler('nonlinearity',nonlinearity_handler,('num_filters',))
 register_flag_handler('noise',noise_handler)
@@ -406,6 +420,7 @@ class LayerSelector(neon.layers.Sequential):
         self.last_selected_layers={}
         kwargs.pop('layer2sharegroup')
         kwargs.pop('constlayer2sharegroup')
+        #print args,kwargs
         super(LayerSelector,self).__init__(*args,**kwargs)
 
         self.sharegroup2layers={}
@@ -449,7 +464,6 @@ class LayerSelector(neon.layers.Sequential):
                         if isinstance(layer,Linear):
                             assert not W_done
                             if W:
-                                print layer.W.shape,W.shape
                                 assert layer.W.shape==W.shape
                                 layer.W=W
                                 layer.dW = layer.be.empty_like(layer.W)
@@ -477,3 +491,49 @@ def network_wrapper(network,stacks,this_model):
     return LayerSelector(network,layer2sharegroup=this_model['layer2sharegroup'],constlayer2sharegroup=this_model['constlayer2sharegroup'])
 
 register_network_wrapper(network_wrapper)
+
+
+
+def branchs(a):
+    refs={}
+    network=(-1,)
+    refs[network]=[]
+    stacks={}
+    all_layers=Layers(network,stacks)
+
+    get_layer=all_layers.get_layer
+
+    count=0
+    for info in a:
+        inputs=info[0]
+        flags=info[-1]
+        if type(inputs) == int or type(inputs) == str or type(inputs) == list:
+            layers = [get_layer(inputs)]
+        elif type(inputs) == tuple:
+            layers = map(get_layer,inputs)
+        else:
+            print type(inputs)
+            raise Exception
+        network = count
+        refs[network]=[]
+        if 'push' in flags:
+            push=flags['push']
+            if type(push)==str:
+                push=[push]
+            for t in push:
+                if t not in stacks:
+                    stacks[t]=[]
+                stacks[t]+=[network]
+        if 'pop' in flags:
+            stacks[flasg['pop']]=stacks[flasg['pop']][:-1]
+        for t in layers:
+            refs[t]+=[network]
+        count+=1
+        all_layers.add(network)
+
+    for t in refs:
+        if len(refs[t])>1:
+            a[t][-1]['branch']=t
+    return a
+
+register_macro_handler(branchs)
