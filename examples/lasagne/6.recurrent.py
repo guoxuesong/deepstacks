@@ -10,13 +10,14 @@ from recurrent import *
 import deepstacks
 from deepstacks.macros import *
 from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model
+from operator import *
 
 #import crossbatch_momentum
 
-def add(x,y):
-    return x+y
-def sub(x,y):
-    return x-y
+#def add(x,y):
+#    return x+y
+#def sub(x,y):
+#    return x-y
 
 def main(num_epochs=NUM_EPOCHS):
     print("Building network ...")

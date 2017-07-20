@@ -393,7 +393,7 @@ def watch_handler(network,flags,stacks,this_model):
             eq=lasagne.objectives.squared_error
         else:
             to,g,eq=flags['watch']
-        if type(to)==type(lambda x:x):
+        if callable(to):#type(to)==type(lambda x:x):
             tmp=lasagne.layers.ExpressionLayer(network,to,output_shape=(batchsize,))
         elif to=='zeros':
             s0=lasagne.layers.get_output_shape(network)

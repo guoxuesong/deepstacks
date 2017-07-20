@@ -28,7 +28,7 @@ class Layers(object):
 def deep_eval(a,m):
     #print 'de:',a
     if type(a)==tuple or type(a)==list:
-        if type(a)==tuple and len(a) and (type(a[0])==type(lambda:0) or type(a[0])==type):
+        if type(a)==tuple and len(a) and callable(a[0]): #(type(a[0])==type(lambda:0) or type(a[0])==type):
             #print 'de:','callable'
             if type(a[-1])!=dict:
                 a+=({},)

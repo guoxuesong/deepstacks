@@ -86,12 +86,10 @@ register_inputs_handler('add',add_handler)
 register_inputs_handler('sub',sub_handler)
 
 def reshape_handler(network,flags,stacks,this_model):
-    batchsize=lasagne.layers.get_output_shape(network)[0]
-    print batchsize
     if 'raw' in flags:
         network=lasagne.layers.ReshapeLayer(network,flags['reshape'])
     else:
-        network=lasagne.layers.ReshapeLayer(network,(batchsize,)+flags['reshape'])
+        network=lasagne.layers.ReshapeLayer(network,(-1,)+flags['reshape'])
     return network,()
 def slice_handler(network,flags,stacks,this_model):
     if 'axis' in flags:

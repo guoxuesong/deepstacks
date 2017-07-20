@@ -189,6 +189,7 @@ def build_network(network,a,m={},**kwargs):
                     h=flag_handler[flag]
                     network,layers=h(network,info[-1],stacks,this_model)
                     paramlayers+=layers
+        print network
         all_layers.add(network)
 
         if layer_handler:
