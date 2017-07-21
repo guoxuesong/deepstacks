@@ -9,7 +9,8 @@ import lasagne
 import math
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
-from ..stacked import register_flag_handler, register_layer_handler
+from ..stacked import register_flag_handler, register_flag_handler_closer
+from ..stacked import register_layer_handler
 from ..stacked import *
 from .curry import curry
 from .argmax import goroshin_max, goroshin_argmax, goroshin_unargmax
@@ -325,14 +326,34 @@ def num_filters_handler(network, flags, stacks, this_model):
 #    else:
 
     if 'dense' in flags or dim == 0:
-        network = lasagne.layers.DenseLayer(
-                network,
-                num_units=num_filters,
-                W=ww,
-                b=bb,
-                nonlinearity=nonlinearity,
-                name=layername,
-                )
+        if 'bn' in flags:
+            network = lasagne.layers.DenseLayer(
+                    network,
+                    num_units=num_filters,
+                    W=ww,
+                    b=None,
+                    nonlinearity=None,
+                    name=layername,
+                    )
+            savew = network.W
+            paramlayers += [network]
+            network = lasagne.layers.BatchNormLayer(network, beta=bb)
+            saveb = network.beta
+            paramlayers += [network]
+            network = lasagne.layers.NonlinearityLayer(
+                    network, nonlinearity=nonlinearity)
+        else:
+            network = lasagne.layers.DenseLayer(
+                    network,
+                    num_units=num_filters,
+                    W=ww,
+                    b=bb,
+                    nonlinearity=nonlinearity,
+                    name=layername,
+                    )
+            savew = network.W
+            saveb = network.b
+            paramlayers += [network]
     else:
         # input_shape = lasagne.layers.get_output_shape(network)
         if 'local' not in flags:
@@ -345,16 +366,38 @@ def num_filters_handler(network, flags, stacks, this_model):
             conv = convs[dim]
 
             assert filter_size > 0
-            network = conv(
-                network,  num_filters=num_filters,
-                filter_size=filter_size,
-                stride=max(1, conv_stride),
-                pad=pad,
-                W=ww,
-                b=bb,
-                nonlinearity=nonlinearity,
-                name=layername,
-                )
+            if 'bn' in flags:
+                network = conv(
+                    network,  num_filters=num_filters,
+                    filter_size=filter_size,
+                    stride=max(1, conv_stride),
+                    pad=pad,
+                    W=ww,
+                    b=None,
+                    nonlinearity=None,
+                    name=layername,
+                    )
+                savew = network.W
+                paramlayers += [network]
+                network = lasagne.layers.BatchNormLayer(network, beta=bb)
+                saveb = network.beta
+                paramlayers += [network]
+                network = lasagne.layers.NonlinearityLayer(
+                        network, nonlinearity=nonlinearity)
+            else:
+                network = conv(
+                    network,  num_filters=num_filters,
+                    filter_size=filter_size,
+                    stride=max(1, conv_stride),
+                    pad=pad,
+                    W=ww,
+                    b=bb,
+                    nonlinearity=nonlinearity,
+                    name=layername,
+                    )
+                savew = network.W
+                saveb = network.b
+                paramlayers += [network]
         else:
             convs = {
                     1: lasagne.layers.LocallyConnected1DLayer,
@@ -365,20 +408,42 @@ def num_filters_handler(network, flags, stacks, this_model):
             conv = convs[dim]
             assert conv_stride == 1
             assert filter_size > 0
-            network = conv(
-                network, num_filters=num_filters,
-                filter_size=filter_size,
-                stride=max(1, conv_stride),
-                pad=pad,
-                W=ww,
-                b=bb,
-                nonlinearity=nonlinearity,
-                name=layername,
-                untie_biases=True,
-                )
-    paramlayers += [network]
+            if 'bn':
+                network = conv(
+                    network, num_filters=num_filters,
+                    filter_size=filter_size,
+                    stride=max(1, conv_stride),
+                    pad=pad,
+                    W=ww,
+                    b=None,
+                    nonlinearity=None,
+                    name=layername,
+                    untie_biases=True,
+                    )
+                savew = network.W
+                paramlayers += [network]
+                network = lasagne.layers.BatchNormLayer(network,beta=bb)
+                saveb = network.beta
+                paramlayers += [network]
+                network = lasagne.layers.NonlinearityLayer(
+                        network, nonlinearity=nonlinearity)
+            else:
+                network = conv(
+                    network, num_filters=num_filters,
+                    filter_size=filter_size,
+                    stride=max(1, conv_stride),
+                    pad=pad,
+                    W=ww,
+                    b=bb,
+                    nonlinearity=nonlinearity,
+                    name=layername,
+                    untie_biases=True,
+                    )
+                savew = network.W
+                saveb = network.b
+    # paramlayers += [network]
     if sharegroup and sharegroup not in sharegroup2params:
-        sharegroup2params[sharegroup] = [network.W, network.b]
+        sharegroup2params[sharegroup] = [savew, saveb]
     if 'saveparamlayer' in flags and flags['saveparamlayer'] is not None:
         g = flags['saveparamlayer']
         if g not in stacks:
@@ -601,6 +666,8 @@ register_flag_handler('unargmax', unargmax_handler)
 register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)
 register_flag_handler('dimshuffle', dimshuffle_handler)
+# register_flag_handler_closer(num_filters_handler, num_filters_handler_closer)
+# register_flag_handler('bn', bn_handler)
 register_flag_handler('num_filters', num_filters_handler, (
     'maxpool', 'meanpool', 'upscale'))
 register_flag_handler('upscale', upscale_handler)

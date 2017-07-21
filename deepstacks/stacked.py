@@ -75,6 +75,7 @@ def curr_model():
 flag_list = []
 flag_handler = {}
 flag_excluding = {}
+flag_handler_closer = {}
 
 
 def register_flag_handler(flag, handler, excluding=()):
@@ -84,6 +85,13 @@ def register_flag_handler(flag, handler, excluding=()):
     assert flag not in flag_handler
     flag_handler[flag] = handler
     flag_excluding[flag] = set(excluding)
+
+
+def register_flag_handler_closer(handler, closer):
+    global flag_list
+    if handler not in flag_list:
+        flag_list = [handler]+flag_list
+    flag_handler_closer[handler] = closer
 
 inputs_handler = {}
 
@@ -218,12 +226,20 @@ def build_network(network, a, m={}, **kwargs):
 
         print info
 
+        active_handlers = set()
+
         for flag in flag_list:
             if flag in flags:
                 if len(flag_excluding[flag] & set(flags)) == 0:
                     h = flag_handler[flag]
+                    active_handlers.add(h)
                     network, layers = h(network, info[-1], stacks, this_model)
                     paramlayers += layers
+            elif flag in active_handlers:
+                h = flag_handler_closer[flag]
+                active_handlers.add(h)
+                network, layers = h(network, info[-1], stacks, this_model)
+                paramlayers += layers
         print network
         all_layers.add(network)
 
