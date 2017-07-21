@@ -123,23 +123,24 @@ def slice_handler(network, flags, stacks, this_model):
 
 
 def maxpool_handler(network, flags, stacks, this_model):
+    layername = flags['layername'] if 'layername' in flags else None
+    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
     conv_stride = flags['stride'] if 'stride' in flags else 0
-#    if conv_stride==0 or conv_stride==1:
-#        pad='same'
-#    elif conv_stride>0:
-#        if filter_size==conv_stride:
-#            pad=0
-#        else:
-#            pad='same'
+    if conv_stride == 0 or conv_stride == 1:
+        pad = filter_size//2
+    elif conv_stride > 0:
+        if filter_size == conv_stride:
+            pad = 0
+        else:
+            pad = filter_size//2
+    if 'pad' in flags:
+        pad = flags['pad']
 #    else: #conv_stride<0
 #        num_filters=num_filters*(-conv_stride)*(-conv_stride)
 #        if not 'nopad' in flags:
 #            pad='same'
 #        else:
 #            pad=0
-
-    layername = flags['layername'] if 'layername' in flags else None
-    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
 
     dim = len(lasagne.layers.get_output_shape(network))-2
     convs = {
@@ -154,7 +155,7 @@ def maxpool_handler(network, flags, stacks, this_model):
         network,
         pool_size=filter_size,
         stride=max(1, conv_stride),
-        pad=0,
+        pad=pad,
         mode='max',
         name=layername,
         )
@@ -162,23 +163,24 @@ def maxpool_handler(network, flags, stacks, this_model):
 
 
 def meanpool_handler(network, flags, stacks, this_model):
+    layername = flags['layername'] if 'layername' in flags else None
+    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
     conv_stride = flags['stride'] if 'stride' in flags else 0
-#    if conv_stride==0 or conv_stride==1:
-#        pad='same'
-#    elif conv_stride>0:
-#        if filter_size==conv_stride:
-#            pad=0
-#        else:
-#            pad='same'
+    if conv_stride == 0 or conv_stride == 1:
+        pad = filter_size//2
+    elif conv_stride > 0:
+        if filter_size == conv_stride:
+            pad = 0
+        else:
+            pad = filter_size//2
+    if 'pad' in flags:
+        pad = flags['pad']
 #    else: #conv_stride<0
 #        num_filters=num_filters*(-conv_stride)*(-conv_stride)
 #        if not 'nopad' in flags:
 #            pad='same'
 #        else:
 #            pad=0
-
-    layername = flags['layername'] if 'layername' in flags else None
-    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
 
     dim = len(lasagne.layers.get_output_shape(network))-2
     convs = {
@@ -193,7 +195,7 @@ def meanpool_handler(network, flags, stacks, this_model):
         network,
         pool_size=filter_size,
         stride=max(1, conv_stride),
-        pad=0,
+        pad=pad,
         mode='average_inc_pad',
         name=layername,
         )
@@ -247,6 +249,8 @@ def num_filters_handler(network, flags, stacks, this_model):
             pad = 'same'
         else:
             pad = 0
+    if 'pad' in flags:
+        pad = flags['pad']
     nonlinearity = None
     if 'linear' in flags:
         pass

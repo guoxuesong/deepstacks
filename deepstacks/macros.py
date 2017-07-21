@@ -108,7 +108,7 @@ def inception(nfilters, name=0):
             (0, nfilters[3], 3, 1, 0, 0, {}),
             (5, nfilters[4], 1, 1, 0, 0, {}),
             (0, nfilters[5], 5, 1, 0, 0, {}),
-            ((5, 4, 2, 0, 6), 0, 0, 0, name, 0, {}),
+            ((4, 2, 0, 5), 0, 0, 0, name, 0, {}),
             )
 
 share2data = {}

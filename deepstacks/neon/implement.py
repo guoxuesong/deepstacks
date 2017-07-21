@@ -12,8 +12,8 @@ from ..stacked import register_macro_handler
 from ..stacked import *
 from neon.layers.layer import Affine, Activation, Linear
 from neon.layers.layer import Bias, BranchNode, GeneralizedCost
-from neon.layers.layer import Reshape, Pooling
-from neon.layers.container import Sequential, MergeSum, MergeMultistream
+from neon.layers.layer import Reshape, Pooling, Conv
+from neon.layers.container import Sequential, MergeSum, MergeBroadcast
 
 network_branch = {}
 branch_notfirst = set()
@@ -45,7 +45,8 @@ def sequential(layers):
 
 
 def concat_handler(layers, flags, stacks, this_model):
-    return MergeMultistream(layers=layers, merge="depth")
+    #return MergeMultistream(layers=layers, merge="depth")
+    return MergeBroadcast(layers=layers, merge="depth")
 
 
 def merge_handler(layers, flags, stacks, this_model):
@@ -92,18 +93,26 @@ def slice_handler(network, flags, stacks, this_model):
 
 def maxpool_handler(network, flags, stacks, this_model):
     # num_filters=flags['num_filters']
-    conv_stride = flags['stride'] if 'stride' in flags else 0
-
     layername = flags['layername'] if 'layername' in flags else None
     filter_size = flags['filter_size'] if 'filter_size' in flags else 0
+    conv_stride = flags['stride'] if 'stride' in flags else 0
+    if conv_stride == 0 or conv_stride == 1:
+        pad = filter_size//2
+    elif conv_stride > 0:
+        if filter_size == conv_stride:
+            pad = 0
+        else:
+            pad = filter_size//2
+    if 'pad' in flags:
+        pad = flags['pad']
 
     # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     # dim=2
     assert filter_size > 0
     network = sequential(layers=(network, Pooling(
         fshape=filter_size,
-        stride=max(1, conv_stride),
-        pad=0,
+        strides=max(1, conv_stride),
+        padding=pad,
         op='max',
         name=layername,
         )))
@@ -112,18 +121,26 @@ def maxpool_handler(network, flags, stacks, this_model):
 
 def meanpool_handler(network, flags, stacks, this_model):
     # num_filters=flags['num_filters']
-    conv_stride = flags['stride'] if 'stride' in flags else 0
-
     layername = flags['layername'] if 'layername' in flags else None
     filter_size = flags['filter_size'] if 'filter_size' in flags else 0
+    conv_stride = flags['stride'] if 'stride' in flags else 0
+    if conv_stride == 0 or conv_stride == 1:
+        pad = filter_size//2
+    elif conv_stride > 0:
+        if filter_size == conv_stride:
+            pad = 0
+        else:
+            pad = filter_size//2
+    if 'pad' in flags:
+        pad = flags['pad']
 
     # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     # dim=2
     assert filter_size > 0
     network = sequential(layers=(network, Pooling(
         fshape=filter_size,
-        stride=max(1, conv_stride),
-        pad=0,
+        strides=max(1, conv_stride),
+        padding=pad,
         op='avg',
         name=layername,
         )))
@@ -153,18 +170,20 @@ def num_filters_handler(network, flags, stacks, this_model):
     filter_size = flags['filter_size'] if 'filter_size' in flags else 0
 
     if conv_stride == 0 or conv_stride == 1:
-        pad = 'same'
+        pad = filter_size//2
     elif conv_stride > 0:
         if filter_size == conv_stride:
             pad = 0
         else:
-            pad = num_filters//2
+            pad = filter_size//2
     else:  # conv_stride<0
         num_filters = num_filters*(-conv_stride)*(-conv_stride)
         if 'nopad' not in flags:
-            pad = num_filters//2
+            pad = filter_size//2
         else:
             pad = 0
+    if 'pad' in flags:
+        pad = flags['pad']
     nonlinearity = None
     if 'linear' in flags:
         pass
@@ -231,7 +250,7 @@ def num_filters_handler(network, flags, stacks, this_model):
                     init=init,
                     bias=neon.initializers.Constant(0.0),
                     strides=max(1, conv_stride),
-                    pading=pad,
+                    padding=pad,
                     activation=nonlinearity,
                     name=layername,
                     dilation=-conv_stride if conv_stride < 0 else {}
