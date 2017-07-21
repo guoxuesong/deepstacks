@@ -6,7 +6,7 @@
 def macros(l):
     res = ()
     for a in l:
-        if callable(type(a[0])):
+        if callable(a[0]):
             res += a[0](*a[1:])
         else:
             res += (a, )
