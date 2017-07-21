@@ -1,15 +1,19 @@
+from .stacked import curr_layer, curr_stacks, curr_flags, curr_model
+
+__all__ = []
+
 try:
     import lasagne
 except ImportError:
     pass
 else:
-    from . import lasagne
+    __all__ += [lasagne]
 
 try:
     import neon
 except ImportError:
     pass
 else:
-    from . import neon
+    __all__ += [neon]
 
-from .stacked import curr_layer,curr_stacks,curr_flags,curr_model
+__all__ += [curr_layer, curr_stacks, curr_flags, curr_model]
