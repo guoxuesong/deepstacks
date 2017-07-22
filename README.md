@@ -59,7 +59,8 @@ every item is int or str each stand for a layer, using the foregoing rules, the
 tuple of these layers ast as inputs of ConcatLayer by default or MergeLayer if
 'op','add' or 'sub' in flags.
 
-num_filters: int, slice or tuple. if int >0, a DenseLayer or Conv[123]DLayer will be
+num_filters: int, slice or tuple. if int >0, and none of 'maxpool' 'meanpool' or
+'upscale' is in flags, a DenseLayer or Conv[123]DLayer will be
 constructed, depend on the output_shape of bottom_layer, if 'dense' in flags,
 use DenseLayer; if slice, a SliceLayer will be constructed, num_filters used as
 indices; if tuple, a ReshapeLayer will be constructed, (-1,)+num_filters used
@@ -71,10 +72,12 @@ stride: int, used to construct Conv[123]DLayer.
 
 putsh_to: str or 0, if not 0, push the result of this line to stack whose name equals to push_to.
 
-share_id: str or 0, if not 0, the layers has same share_id share params.
+share_id: str or 0, if not 0, the layers has same share_id share params. Keep
+it 0, macro 'share' and 'call' will handle it.
 
-# flags
-Following flags take effect in order:
+# Flags
+Following flags take effect in order, if any of these three take effect,
+'num_filters' will be IGNORED:
 
 'maxpool': Pool[123]DLayer mode='max',use filter_size as pool_size, use stride
 
@@ -82,7 +85,7 @@ Following flags take effect in order:
 
 'upscale': Upscale[123]DLayer mode='repeat', use filter_size as scale_factor
 
-Following flags take effect after Conv[123]DLayer or DenseLayer if exists.
+Following flags take effect AFTER 'num_filters'.
 
 'dimshuffle': DimshuffleLayer use flags['dimshuffle'] as pattern
 
