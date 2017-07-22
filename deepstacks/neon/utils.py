@@ -113,7 +113,6 @@ def InputLayer(name):
 def get_inputs(network):
     res = []
     for layer in network.layers_fprop():
-        print type(layer)
         if isinstance(layer, neon.layers.layer.DataTransform):
             res += [layer.name]
     return res
@@ -122,3 +121,10 @@ def get_inputs(network):
 def get_targets(cost):
     return map(lambda x: x.name, filter(
         lambda x: x is not None, cost.target_layers))
+
+
+def walk(network, indent=0):
+    print ' '*indent, [network]
+    if hasattr(network, 'layers'):
+        for t in network.layers:
+            walk(t, indent+1)

@@ -71,6 +71,7 @@ pool3s2p1 = dict(fshape=3, padding=1, strides=2, op='max')
 
 l_in = deepstacks.neon.InputLayer('image')
 
+# NOTE: neon's orig layers dose not add bias, so it's much faster than us
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,64,7,2,0,0,{}),
         (0,0,3,2,0,0,{'maxpool'}),
@@ -89,7 +90,6 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
         (inception,(128, 256, 160, 320, 32, 128, )),
         (inception,(128, 384, 192, 384, 48, 128, )),
         (0,0,7,1,0,0,{'meanpool':True,'pad':0}),
-        #(0,1000,0,0,0,0,{'dense':True,'nonlinearity':Softmax()}),
         (0,1000,0,0,0,0,{'dense':True,'linear':True}),
         ))
 

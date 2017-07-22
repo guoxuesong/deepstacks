@@ -87,6 +87,7 @@ b2 = BranchNode(name="b2")
 def insert_branch_layer(network,b):
     return Sequential(layers=(network,b))
 
+# NOTE: neon's orig layers dose not add bias, so it's much faster than us
 l_in = deepstacks.neon.InputLayer('image')
 l_y = deepstacks.neon.InputLayer('y')
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(

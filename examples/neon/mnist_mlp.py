@@ -76,6 +76,7 @@ init_norm = Gaussian(loc=0.0, scale=0.01)
 import neon
 l_in = deepstacks.neon.InputLayer('image')
 
+# NOTE: neon's orig layers dose not add bias, so it's much faster than us
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,100,0,0,0,0,{'dense'}),
         (0,10,0,0,0,0,{'dense':True,'nonlinearity':Logistic(shortcut=True)}),
@@ -88,6 +89,8 @@ cost,extra_layers,tagslice = deepstacks.neon.get_loss(errors,watchpoints,cost)
 
 network = Tree([network]+extra_layers) 
 
+deepstacks.neon.utils.walk(network)
+
 inputs = deepstacks.neon.get_inputs(network)
 
 assert tuple(inputs)==('image',)
@@ -95,15 +98,6 @@ assert tuple(inputs)==('image',)
 #print network.get_description()
 
 layers = network
-
-#cost = GeneralizedCost(costfunc=CrossEntropyBinary())
-#layers = [
-#        Sequential(layers=(       
-#        l_in,
-#        Affine(nout=100, init=init_norm, activation=Rectlin()),
-#        Affine(nout=10, init=init_norm, activation=Logistic(shortcut=True))
-#        ))
-#        ]
 
 # setup optimizer
 optimizer = GradientDescentMomentum(
