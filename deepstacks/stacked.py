@@ -248,7 +248,7 @@ def build_network(network, a, m={}, **kwargs):
 
     stacks['output'] = [network]
     if 'finish' in kwargs:
-        kwargs['finish'](stacks)
+        kwargs['finish'](stacks,this_model['errors'],this_model['watchpoints'])
     all_layers.finish()
 
     print 'network before wrapper:', network
