@@ -28,6 +28,7 @@ from neon import NervanaObject
 from neon.util.argparser import NeonArgparser
 from neon.initializers import Xavier
 from neon.layers import Conv, Pooling, GeneralizedCost, Affine, MergeBroadcast
+from neon.layers import Tree
 from neon.optimizers import GradientDescentMomentum, MultiOptimizer, Schedule
 from neon.transforms import Rectlin, CrossEntropyMulti
 from neon.transforms import Rectlin, Logistic, Softmax
@@ -70,6 +71,18 @@ pool3s2p1 = dict(fshape=3, padding=1, strides=2, op='max')
 
 l_in = deepstacks.neon.InputLayer('image')
 
+def inception(nfilters, name=0):
+    return (
+            (0, 0, 3, 1, 0, 0, {'maxpool'}),
+            (0, nfilters[0], 1, 1, 0, 0, {}),
+            (2, nfilters[1], 1, 1, 0, 0, {}),
+            (3, nfilters[2], 1, 1, 0, 0, {}),
+            (0, nfilters[3], 3, 1, 0, 0, {}),
+            (5, nfilters[4], 1, 1, 0, 0, {}),
+            (0, nfilters[5], 5, 1, 0, 0, {}),
+            ((4, 2, 0, 5), 0, 0, 0, name, 0, {}),
+            )
+
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,64,7,2,0,0,{}),
         (0,0,3,2,0,0,{'maxpool'}),
@@ -88,10 +101,12 @@ network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in
         (inception,(128, 256, 160, 320, 32, 128, )),
         (inception,(128, 384, 192, 384, 48, 128, )),
         (0,0,7,1,0,0,{'meanpool':True,'pad':0}),
-        (0,1000,0,0,0,0,{'dense':True,'nonlinearity':Softmax()}),
+        #(0,1000,0,0,0,0,{'dense':True,'nonlinearity':Softmax()}),
+        (0,1000,0,0,0,0,{'dense':True,'linear':True}),
         ))
 
-model = Model(layers=[network])
+model = Model(layers=network)
+#model = Model(layers=Tree([network]))
 
 #model = Model(layers=[
 #    Conv((7, 7, 64), padding=3, strides=2, **common),

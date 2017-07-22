@@ -10,10 +10,11 @@ from ..stacked import register_concat_handler, register_inputs_handler
 from ..stacked import register_flag_handler, register_network_wrapper
 from ..stacked import register_macro_handler
 from ..stacked import *
-from neon.layers.layer import Affine, Activation, Linear
+from neon.layers.layer import Affine, Activation, Linear, SkipNode
 from neon.layers.layer import Bias, BranchNode, GeneralizedCost
 from neon.layers.layer import Reshape, Pooling, Conv
-from neon.layers.container import Sequential, MergeSum, MergeBroadcast
+from neon.layers.container import Sequential, MergeSum, MergeMultistream, Tree
+from neon.layers.container import MergeBroadcast
 
 network_branch = {}
 branch_notfirst = set()
@@ -45,16 +46,94 @@ def sequential(layers):
 
 
 def concat_handler(layers, flags, stacks, this_model):
-    #return MergeMultistream(layers=layers, merge="depth")
-    return MergeBroadcast(layers=layers, merge="depth")
+    head,ls=split_merge_layers(layers)
+    return Sequential(layers=head+(MergeBroadcast(ls, merge="depth"),))
+    #return MergeBroadcast(layers=layers, merge="depth")
+    #network = Tree(layers=layers)
+    #return MergeMultistream(layers=network, merge="depth")
 
 
 def merge_handler(layers, flags, stacks, this_model):
     raise NotImplementedError
 
+def split_list(a,d):
+    res=[[],]
+    for t in a:
+        if t!=d:
+            res[-1]+=[t]
+        else:
+            res+=[[],]
+    print a
+    print [d]
+    print res
+    return res
+
+def split_merge_layers(layers):
+    bs=[]
+    ls=[]
+    for layer in layers:
+        if type(layer)==BranchNode:
+            b=layer
+            l=SkipNode()
+        elif type(layer.layers[0])==BranchNode:
+            b=layer.layers[0]
+            l=Sequential(tuple(layer.layers[1:]))
+        else:
+            b=None
+            l=None
+        bs+=[b]
+        ls+=[l]
+    bset=set(bs)-set({None})
+    if len(bset)>1:
+        print bset
+    assert len(bset)<=1
+    if len(bset)==1:
+        for b in bset:
+            pass
+    print 'bs:',bs
+    print 'ls:',ls
+
+    head = ()
+    for i,layer in enumerate(layers):
+        if ls[i] is None:
+            ll=split_list(layers[i].layers,b)
+            assert len(ll)<=2
+            if len(ll)==2:
+                assert head == ()
+                head,l=ll
+                head=tuple(head)
+                l=tuple(l)
+                ls[i]=l
+            else:
+                ls[i]=layers[i].layers
+
+    print 'bs:',bs
+    print 'head:',head
+    print 'ls:',ls
+
+    return head,tuple(ls)
+
 
 def add_handler(layers, flags, stacks, this_model):
-    return MergeSum(layers)
+    head,ls=split_merge_layers(layers)
+    return Sequential(layers=head+(MergeSum(ls),))
+
+#    if type(layers[1])==BranchNode:
+#        b=layers[1]
+#        l3=SkipNode()
+#    elif type(layers[1].layers[0]==BranchNode):
+#        b=layers[1].layers[0]==BranchNode
+#        l3=Sequential(tuple(layers[1].layers[1:]))
+#    else:
+#        b=None
+#
+#    if b is not None:
+#        l1,l2=split_list(layers[0].layers,b)
+#        l1=tuple(l1)
+#        l2=tuple(l2)
+#        return Sequential(layers=l1+(MergeSum((l2,l3)),))
+#    else:
+#        return MergeSum(layers)
 
 
 def sub_handler(layers, flags, stacks, this_model):

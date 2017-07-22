@@ -15,7 +15,7 @@ class Layers(object):
     def get_layer(self, k):
         if type(k) == list and len(k) == 1:
             print 'WARNING: disconnected_grad not implemented.'
-            return k[0]
+            k = k[0]
         if type(k) == int:
             return self.layers[::-1][k]
         if type(k) == list and len(k) > 1:
