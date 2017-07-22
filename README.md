@@ -76,8 +76,16 @@ share_id: str or 0, if not 0, the layers has same share_id share params. Keep
 it 0, macro 'share' and 'call' will handle it.
 
 # Flags
-Following flags take effect in order, if any of these three take effect,
-'num_filters' will be IGNORED:
+Following flags take effect in order:
+
+'op': callable, bottom_layer should be tuple, ElemwiseMergeLayer, use
+bottom_layer as incomings, flags['op'] as merge_function.
+
+'add': equal to flags['op':theano.tensor.add]
+
+'sub': equal to flags['op':theano.tensor.sub]
+
+If any of the following three flags take effect, 'num_filters' would be IGNORED:
 
 'maxpool': Pool[123]DLayer mode='max',use filter_size as pool_size, use stride
 
