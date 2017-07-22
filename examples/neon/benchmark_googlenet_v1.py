@@ -71,18 +71,6 @@ pool3s2p1 = dict(fshape=3, padding=1, strides=2, op='max')
 
 l_in = deepstacks.neon.InputLayer('image')
 
-def inception(nfilters, name=0):
-    return (
-            (0, 0, 3, 1, 0, 0, {'maxpool'}),
-            (0, nfilters[0], 1, 1, 0, 0, {}),
-            (2, nfilters[1], 1, 1, 0, 0, {}),
-            (3, nfilters[2], 1, 1, 0, 0, {}),
-            (0, nfilters[3], 3, 1, 0, 0, {}),
-            (5, nfilters[4], 1, 1, 0, 0, {}),
-            (0, nfilters[5], 5, 1, 0, 0, {}),
-            ((4, 2, 0, 5), 0, 0, 0, name, 0, {}),
-            )
-
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,64,7,2,0,0,{}),
         (0,0,3,2,0,0,{'maxpool'}),
