@@ -46,76 +46,78 @@ def sequential(layers):
 
 
 def concat_handler(layers, flags, stacks, this_model):
-    head,ls=split_merge_layers(layers)
+    head, ls = split_merge_layers(layers)
     return Sequential(layers=head+(MergeBroadcast(ls, merge="depth"),))
-    #return MergeBroadcast(layers=layers, merge="depth")
-    #network = Tree(layers=layers)
-    #return MergeMultistream(layers=network, merge="depth")
+    # return MergeBroadcast(layers=layers, merge="depth")
+    # network = Tree(layers=layers)
+    # return MergeMultistream(layers=network, merge="depth")
 
 
 def merge_handler(layers, flags, stacks, this_model):
     raise NotImplementedError
 
-def split_list(a,d):
-    res=[[],]
+
+def split_list(a, d):
+    res = [[], ]
     for t in a:
-        if t!=d:
-            res[-1]+=[t]
+        if t != d:
+            res[-1] += [t]
         else:
-            res+=[[],]
+            res += [[], ]
     print a
     print [d]
     print res
     return res
 
+
 def split_merge_layers(layers):
-    bs=[]
-    ls=[]
+    bs = []
+    ls = []
     for layer in layers:
-        if type(layer)==BranchNode:
-            b=layer
-            l=SkipNode()
-        elif type(layer.layers[0])==BranchNode:
-            b=layer.layers[0]
-            l=Sequential(tuple(layer.layers[1:]))
+        if type(layer) == BranchNode:
+            b = layer
+            l = SkipNode()
+        elif type(layer.layers[0]) == BranchNode:
+            b = layer.layers[0]
+            l = Sequential(tuple(layer.layers[1:]))
         else:
-            b=None
-            l=None
-        bs+=[b]
-        ls+=[l]
-    bset=set(bs)-set({None})
-    if len(bset)>1:
+            b = None
+            l = None
+        bs += [b]
+        ls += [l]
+    bset = set(bs)-set({None})
+    if len(bset) > 1:
         print bset
-    assert len(bset)<=1
-    if len(bset)==1:
+    assert len(bset) <= 1
+    if len(bset) == 1:
         for b in bset:
             pass
-    print 'bs:',bs
-    print 'ls:',ls
+    print 'bs:', bs
+    print 'ls:', ls
 
     head = ()
-    for i,layer in enumerate(layers):
+    for i, layer in enumerate(layers):
         if ls[i] is None:
-            ll=split_list(layers[i].layers,b)
-            assert len(ll)<=2
-            if len(ll)==2:
+            ll = split_list(layers[i].layers, b)
+            assert len(ll) <= 2
+            if len(ll) == 2:
                 assert head == ()
-                head,l=ll
-                head=tuple(head)
-                l=tuple(l)
-                ls[i]=l
+                head, l = ll
+                head = tuple(head)
+                l = tuple(l)
+                ls[i] = l
             else:
-                ls[i]=layers[i].layers
+                ls[i] = layers[i].layers
 
-    print 'bs:',bs
-    print 'head:',head
-    print 'ls:',ls
+    print 'bs:', bs
+    print 'head:', head
+    print 'ls:', ls
 
-    return head,tuple(ls)
+    return head, tuple(ls)
 
 
 def add_handler(layers, flags, stacks, this_model):
-    head,ls=split_merge_layers(layers)
+    head, ls = split_merge_layers(layers)
     return Sequential(layers=head+(MergeSum(ls),))
 
 #    if type(layers[1])==BranchNode:
@@ -137,20 +139,21 @@ def add_handler(layers, flags, stacks, this_model):
 
 
 def sub_handler(layers, flags, stacks, this_model):
+    head, layers = split_merge_layers(layers)
     if len(layers) > 2:
         left = layers[0]
         right = sequential(
                 layers=(
                     MergeSum(layers[1:]),
                     Activation(neon.transforms.Normalizer(divisor=-1))))
-        network = MergeSum(layers=(left, right))
+        network = Sequential(layers=head+(MergeSum(layers=(left, right)),))
     elif len(layers) == 2:
         left = layers[0]
         right = sequential(
                 layers=(
                     layers[1],
                     Activation(neon.transforms.Normalizer(divisor=-1))))
-        network = MergeSum(layers=(left, right))
+        network = Sequential(layers=head+(MergeSum(layers=(left, right)),))
     else:
         network = layers[0]
     return network
@@ -380,10 +383,12 @@ def watch_handler(network, flags, stacks, this_model):
 #        else:
 #            to, g, eq=flags['watch']
 #        if type(to)==type(lambda x:x):
-#            tmp=lasagne.layers.ExpressionLayer(network, to, output_shape=(batchsize, ))
+#            tmp=lasagne.layers.ExpressionLayer(
+#                network, to, output_shape=(batchsize, ))
 #        elif to=='zeros':
 #            s0=lasagne.layers.get_output_shape(network)
-#            target=ZeroLayer(shape=s0, input_var=T.zeros(s0, dtype=theano.config.floatX))
+#            target=ZeroLayer(shape=s0, input_var=T.zeros(
+#                s0, dtype=theano.config.floatX))
 #            #tmp=lasagne.layers.NonlinearityLayer(network,
 #            #        nonlinearity=lambda x:x**2.0
 #            #        )
@@ -397,7 +402,11 @@ def watch_handler(network, flags, stacks, this_model):
 #        else:
 #            n=1
 #        shape=lasagne.layers.get_output_shape(tmp)[:n]
-#        tmp=lasagne.layers.ExpressionLayer(tmp, curry(lambda n, shape, x:x.flatten(ndim=n+1).sum(axis=n), n, shape), output_shape=shape)
+#        tmp=lasagne.layers.ExpressionLayer(
+#            tmp,
+#            curry(
+#                lambda n, shape, x:x.flatten(ndim=n+1).sum(axis=n), n, shape),
+#            output_shape=shape)
 #    if g not in watchpoints:
 #        watchpoints[g]=[]
 #    watchpoints[g]+=[tmp]
@@ -439,7 +448,11 @@ def equal_handler(network, flags, stacks, this_model):
 #        else:
 #            n=1
 #        shape=lasagne.layers.get_output_shape(tmp)[:n]
-#        tmp=lasagne.layers.ExpressionLayer(tmp, curry(lambda n, shape, x:x.flatten(ndim=n+1).sum(axis=n), n, shape), output_shape=shape)
+#        tmp=lasagne.layers.ExpressionLayer(
+#            tmp,
+#            curry(
+#                lambda n, shape, x:x.flatten(ndim=n+1).sum(axis=n), n, shape),
+#            output_shape=shape)
     errors[g] += [(cost, delta)]
     return network, ()
 
@@ -474,45 +487,14 @@ def nonlinearity_handler(network, flags, stacks, this_model):
 
 def argmax_handler(network, flags, stacks, this_model):
     raise NotImplementedError
-#    if type(flags['argmax'])==tuple:
-#        axis=flags['argmax']
-#    else:
-#        axis=(1, )
-#    shape=lasagne.layers.get_output_shape(network)
-#    output_shape=()
-#    for idx, w in enumerate(shape):
-#        if idx not in axis:
-#            output_shape+=(w, )
-#    network = lasagne.layers.ExpressionLayer(network, curry(lambda shape, axis, beta, x: goroshin_argmax(x, shape, axis=axis, beta=beta).astype(theano.config.floatX), shape, axis, flags['beta']),  output_shape=output_shape[0:1]+(len(axis), )+output_shape[1:])
-#    return network, ()
 
 
 def unargmax_handler(network, flags, stacks, this_model):
     raise NotImplementedError
-#    if type(flags['unargmax'])==tuple:
-#        axis=flags['unargmax']
-#    else:
-#        axis=(1, )
-#    shape=flags['shape']
-#    if type(shape)==tuple:
-#        shape=list(shape)
-#    if type(shape)==list and shape[0]==None:
-#        shape[0]=lasagne.layers.get_output_shape(network)[0]
-#    network = lasagne.layers.ExpressionLayer(network, curry(lambda shape, axis, x: goroshin_unargmax(x, shape, axis=axis).astype(theano.config.floatX), shape, axis),  output_shape=shape)
-#    return network, ()
 
 
 def max_handler(network, flags, stacks, this_model):
     raise NotImplementedError
-#    if type(flags['max'])==tuple:
-#        axis=flags['max']
-#    else:
-#        axis=(1, )
-#    shape=list(lasagne.layers.get_output_shape(network))
-#    for i in axis:
-#        shape[i]=1
-#    network = lasagne.layers.ExpressionLayer(network, curry(lambda axis, beta, x: goroshin_max(x, axis=axis, beta=beta, keepdims=True).astype(theano.config.floatX), axis, flags['beta']),  output_shape=shape)
-#    return network, ()
 
 
 def branch_handler(network, flags, stacks, this_model):
