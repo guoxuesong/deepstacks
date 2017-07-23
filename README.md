@@ -113,9 +113,10 @@ handler of num_filters.
 'relu': add a extra NonlinearityLayer with nonlinearity=relu, the default relu
 is rectify.
 
-'watch': [layer, target, eq], add a watchpoint represent eq(layer,target), see
-deepstacks/lasagne/implment.py for detail.
+'watch': [equal_to, name, eq], add a named watchpoint represent
+eq(curr_layer,equal_to), see deepstacks/lasagne/implment.py for detail.
 
-'equal': [layer, target, eq], add a constraint represent eq(layer,target), see
-deepstacks/lasagne/implment.py for detail, see exaples/lasagne/3.constraint.py
+'equal': [equal_to, name, eq], add a named constraint represent
+eq(curry_layer,equal_to), see deepstacks/lasagne/implment.py for detail, see
+exaples/lasagne/3.constraint.py
 for usage.
