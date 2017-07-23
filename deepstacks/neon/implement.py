@@ -175,9 +175,9 @@ def slice_handler(network, flags, stacks, this_model):
 
 def maxpool_handler(network, flags, stacks, this_model):
     # num_filters=flags['num_filters']
-    layername = flags['layername'] if 'layername' in flags else None
-    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
-    conv_stride = flags['stride'] if 'stride' in flags else 0
+    layername = flags.get('layername', None)
+    filter_size = flags.get('filter_size', 0)
+    conv_stride = flags.get('stride', 0)
     if conv_stride == 0 or conv_stride == 1:
         pad = filter_size//2
     elif conv_stride > 0:
@@ -203,9 +203,9 @@ def maxpool_handler(network, flags, stacks, this_model):
 
 def meanpool_handler(network, flags, stacks, this_model):
     # num_filters=flags['num_filters']
-    layername = flags['layername'] if 'layername' in flags else None
-    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
-    conv_stride = flags['stride'] if 'stride' in flags else 0
+    layername = flags.get('layername', None)
+    filter_size = flags.get('filter_size', 0)
+    conv_stride = flags.get('stride', 0)
     if conv_stride == 0 or conv_stride == 1:
         pad = filter_size//2
     elif conv_stride > 0:
@@ -247,9 +247,10 @@ def num_filters_handler(network, flags, stacks, this_model):
     constlayer2sharegroup = this_model['constlayer2sharegroup']
 
     num_filters = flags['num_filters']
-    conv_stride = flags['stride'] if 'stride' in flags else 0
-    layername = flags['layername'] if 'layername' in flags else None
-    filter_size = flags['filter_size'] if 'filter_size' in flags else 0
+    conv_stride = flags.get('stride', 0)
+    layername = flags.get('layername', None)
+    filter_size = flags.get('filter_size', 0)
+    bn = flags.get('bn', False)
 
     if conv_stride == 0 or conv_stride == 1:
         pad = filter_size//2
@@ -274,15 +275,19 @@ def num_filters_handler(network, flags, stacks, this_model):
     else:
         nonlinearity = this_model.get('relu', neon.transforms.Rectlin())
 
-    sharegroup = flags['sharegroup'] if 'sharegroup' in flags else 0
+    sharegroup = flags.get('sharegroup', 0)
 
-    if sharegroup and sharegroup in sharegroup2params:
-        paramlayer = None  # sharegroup2params[sharegroup]
+    # if sharegroup and sharegroup in sharegroup2params:
+    #    paramlayer = None  # sharegroup2params[sharegroup]
+    # else:
+    #    paramlayer = None
+    init = this_model.get('init', neon.initializers.GlorotUniform())
+    if 'init' in flags:
+        init = flags['init']
+    if 'nobias' in flags:
+        bias = None
     else:
-        paramlayer = None
-        init = this_model.get('init', neon.initializers.GlorotUniform())
-        if 'init' in flags:
-            init = flags['init']
+        bias = neon.initializers.Constant(0.0),
 
     # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     # dim=2
@@ -312,7 +317,8 @@ def num_filters_handler(network, flags, stacks, this_model):
         paramlayer = sequential(layers=Affine(
                 nout=num_filters,
                 init=init,
-                bias=neon.initializers.Constant(0.0),
+                bias=bias,
+                batch_norm=bn,
                 activation=nonlinearity))
         if sharegroup:
             if 'const' in flags:
@@ -330,11 +336,12 @@ def num_filters_handler(network, flags, stacks, this_model):
             paramlayer = sequential(layers=Conv(
                     fshape=(filter_size, filter_size, num_filters),
                     init=init,
-                    bias=neon.initializers.Constant(0.0),
+                    bias=bias,
                     strides=max(1, conv_stride),
                     padding=pad,
                     activation=nonlinearity,
                     name=layername,
+                    batch_norm=bn,
                     dilation=-conv_stride if conv_stride < 0 else {}
                     ))
             if sharegroup:

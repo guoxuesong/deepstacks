@@ -266,7 +266,8 @@ def num_filters_handler(network, flags, stacks, this_model):
         bb = sharegroup2params[sharegroup][1]
         if 'const' in flags:
             ww = theano.gradient.disconnected_grad(ww)
-            bb = theano.gradient.disconnected_grad(bb)
+            if bb is not None:
+                bb = theano.gradient.disconnected_grad(bb) 
     else:
         init = this_model.get('init', lasagne.init.GlorotUniform)
         if 'init' in flags:
@@ -281,7 +282,10 @@ def num_filters_handler(network, flags, stacks, this_model):
                 ww = init(gain='relu')
             else:
                 ww = init()
-        bb = lasagne.init.Constant(0.0)
+        if 'nobias' in flags:
+            bb = None
+        else:
+            bb = lasagne.init.Constant(0.0)
 
     dim = len(lasagne.layers.get_output_shape(network))-2
 #    if 'maxpool' in flags or 'meanpool' in flags:

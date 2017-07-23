@@ -76,10 +76,9 @@ init_norm = Gaussian(loc=0.0, scale=0.01)
 import neon
 l_in = deepstacks.neon.InputLayer('image')
 
-# NOTE: neon's orig layers dose not add bias, so it's much faster than us
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
-        (0,100,0,0,0,0,{'dense'}),
-        (0,10,0,0,0,0,{'dense':True,'nonlinearity':Logistic(shortcut=True)}),
+        (0,100,0,0,0,0,{'dense','nobias'}),
+        (0,10,0,0,0,0,{'dense':True,'nonlinearity':Logistic(shortcut=True),'nobias':True}),
         ))
 
 # setup cost function as CrossEntropy
