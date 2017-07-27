@@ -287,7 +287,7 @@ def num_filters_handler(network, flags, stacks, this_model):
     if 'nobias' in flags:
         bias = None
     else:
-        bias = neon.initializers.Constant(0.0),
+        bias = neon.initializers.Constant(0.0)
 
     # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
     # dim=2
