@@ -474,7 +474,10 @@ def dimshuffle_handler(network, flags, stacks, this_model):
 
 
 def noise_handler(network, flags, stacks, this_model):
-    return lasagne.layers.GaussianNoiseLayer(network, flags['noise']), ()
+    sigma = flags['noise']
+    if sigma == True:
+        sigma = 0.1
+    return lasagne.layers.GaussianNoiseLayer(network, sigma), ()
 
 
 def watch_handler(network, flags, stacks, this_model):

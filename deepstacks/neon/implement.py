@@ -4,6 +4,7 @@
 
 import neon
 import random
+import numpy as np
 
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
@@ -12,9 +13,56 @@ from ..stacked import register_macro_handler
 from ..stacked import *
 from neon.layers.layer import Affine, Activation, Linear, SkipNode
 from neon.layers.layer import Bias, BranchNode, GeneralizedCost
-from neon.layers.layer import Reshape, Pooling, Conv
-from neon.layers.container import Sequential, MergeSum, MergeMultistream, Tree
-from neon.layers.container import MergeBroadcast
+from neon.layers.layer import Reshape, Pooling, Conv, Layer
+from neon.layers.container import Sequential, MergeSum, MergeBroadcast
+
+
+class NoiseLayer(Layer):
+    def __init__(self, sigma=0.1, name=None):
+        super(NoiseLayer, self).__init__(name)
+        self.sigma = sigma
+        self.owns_delta = True
+        self.is_mklop = True
+
+    def fprop(self, inputs=None, inference=False, beta=0):
+        self.be.fill_normal(self.noisebuf, stdv=self.sigma)
+        self.be.fprop_skipnode(inputs, self.outputs, beta)
+        self.outputs[:] = self.outputs + self.noisebuf
+        return self.outputs
+
+    def configure(self, in_obj):
+        super(NoiseLayer, self).configure(in_obj)
+        self.out_shape = self.in_shape
+
+        self.noisebuf = self.be.iobuf(self.in_shape, dtype=np.float32)
+        # self.noisebuf = self.be.iobuf(self.in_shape)
+        return self
+
+    def bprop(self, error, alpha=1.0, beta=0.0):
+        # for better performance, mkl do nothing
+        # otherwise, convert back and deal with beta and alpha.
+        self.be.bprop_skipnode(error, self.deltas, alpha, beta)
+        return self.deltas
+
+
+class ConstantLayer(Layer):
+    def __init__(self, name=None):
+        super(ConstantLayer, self).__init__(name)
+        self.owns_delta = True
+        self.is_mklop = True
+
+    def fprop(self, inputs=None, inference=False, beta=0):
+        self.be.fprop_skipnode(inputs, self.outputs, beta)
+        return self.outputs
+
+    def configure(self, in_obj):
+        super(ConstantLayer, self).configure(in_obj)
+        self.out_shape = self.in_shape
+        return self
+
+    def bprop(self, error, alpha=1.0, beta=0.0):
+        self.deltas[:] = 0
+        return self.deltas
 
 network_branch = {}
 branch_notfirst = set()
@@ -22,6 +70,9 @@ branch_notfirst = set()
 
 class NeonLayers(Layers):
     def get_layer(self, k):
+        constant_flag = False
+        if type(k) == list and len(k) == 1:
+            constant_flag = True
         layer = super(NeonLayers, self).get_layer(k)
 
         if layer in network_branch:
@@ -31,6 +82,8 @@ class NeonLayers(Layers):
                 layer = b
             else:
                 branch_notfirst.add(b)
+        if constant_flag:
+            layer = sequential(layers=(layer, ConstantLayer()))
         return layer
 register_layers_class(NeonLayers)
 
@@ -371,7 +424,10 @@ def dimshuffle_handler(network, flags, stacks, this_model):
 
 
 def noise_handler(network, flags, stacks, this_model):
-    raise NotImplementedError
+    sigma = flags['noise']
+    if sigma == True:
+        sigma = 0.1
+    return sequential(layers=(network,NoiseLayer(sigma))), ()
 
 
 def watch_handler(network, flags, stacks, this_model):
