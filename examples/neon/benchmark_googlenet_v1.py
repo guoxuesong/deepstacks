@@ -69,7 +69,7 @@ pool3s2p1 = dict(fshape=3, padding=1, strides=2, op='max')
 #    branch4 = [Pooling(op="max", **pool3s1p1), Conv((1, 1, p4[0]), **common)]
 #    return MergeBroadcast(layers=[branch1, branch2, branch3, branch4], merge="depth")
 
-l_in = deepstacks.neon.InputLayer('image')
+l_in = deepstacks.neon.InputLayer((None,)+train_set.shape,'image')
 
 # NOTE: neon's orig layers dose not add bias, so it's much faster than us
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(

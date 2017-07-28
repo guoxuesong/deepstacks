@@ -87,8 +87,8 @@ b2 = BranchNode(name="b2")
 def insert_branch_layer(network,b):
     return Sequential(layers=(network,b))
 
-l_in = deepstacks.neon.InputLayer('image')
-l_y = deepstacks.neon.InputLayer('y')
+l_in = deepstacks.neon.InputLayer((None,)+train_set.shape,'image')
+l_y = deepstacks.neon.InputLayer((None,),'y')
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,100,0,0,'m_l1',0,{'dense'}),
         (0,32,0,0,'m_l2',0,{'dense'}),

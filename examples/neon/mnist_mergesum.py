@@ -74,7 +74,7 @@ init_norm = Gaussian(loc=0.0, scale=0.01)
 #          Affine(nout=10, init=init_norm, activation=Logistic(shortcut=True))]
 
 import neon
-l_in = deepstacks.neon.InputLayer('image')
+l_in = deepstacks.neon.InputLayer((None,)+train_set.shape,'image')
 
 network,stacks,paramlayers,errors,watchpoints=deepstacks.neon.build_network(l_in,(
         (0,100,0,0,0,0,{'dense'}),

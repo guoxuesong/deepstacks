@@ -5,6 +5,7 @@
 import neon
 import random
 import numpy as np
+import math
 
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
@@ -15,11 +16,18 @@ from neon.layers.layer import Affine, Activation, Linear, SkipNode
 from neon.layers.layer import Bias, BranchNode, GeneralizedCost
 from neon.layers.layer import Reshape, Pooling, Conv, Layer
 from neon.layers.container import Sequential, MergeSum, MergeBroadcast
+import utils
 
 
-class NoiseLayer(Layer):
+def get_output_shape(network):
+    if not isinstance(network, neon.layers.layer.DataTransform):
+        network.configure(None)
+    return (network.be.bsz,)+network.out_shape
+
+
+class GaussianNoiseLayer(Layer):
     def __init__(self, sigma=0.1, name=None):
-        super(NoiseLayer, self).__init__(name)
+        super(GaussianNoiseLayer, self).__init__(name)
         self.sigma = sigma
         self.owns_delta = True
         self.is_mklop = True
@@ -31,7 +39,7 @@ class NoiseLayer(Layer):
         return self.outputs
 
     def configure(self, in_obj):
-        super(NoiseLayer, self).configure(in_obj)
+        super(GaussianNoiseLayer, self).configure(in_obj)
         self.out_shape = self.in_shape
 
         self.noisebuf = self.be.iobuf(self.in_shape, dtype=np.float32)
@@ -95,7 +103,10 @@ def sequential(layers):
             a += tuple(t.layers)
         else:
             a += (t, )
-    return Sequential(layers=a)
+    res=Sequential(layers=a)
+    #print 'in_shape:',a[0].in_shape
+    #res.configure(a[0].in_shape)
+    return res
 
 
 def concat_handler(layers, flags, stacks, this_model):
@@ -241,11 +252,11 @@ def maxpool_handler(network, flags, stacks, this_model):
     if 'pad' in flags:
         pad = flags['pad']
 
-    # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    # dim=2
+    dim = len(get_output_shape(network))-2
+    print 'pooling debug:',filter_size,max(1, conv_stride),pad
     assert filter_size > 0
     network = sequential(layers=(network, Pooling(
-        fshape=filter_size,
+        fshape=(filter_size,)*dim if dim>=2 else filter_size,
         strides=max(1, conv_stride),
         padding=pad,
         op='max',
@@ -269,11 +280,10 @@ def meanpool_handler(network, flags, stacks, this_model):
     if 'pad' in flags:
         pad = flags['pad']
 
-    # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    # dim=2
+    dim = len(get_output_shape(network))-2
     assert filter_size > 0
     network = sequential(layers=(network, Pooling(
-        fshape=filter_size,
+        fshape=(filter_size,)*dim if dim>=2 else filter_size,
         strides=max(1, conv_stride),
         padding=pad,
         op='avg',
@@ -284,6 +294,18 @@ def meanpool_handler(network, flags, stacks, this_model):
 
 def upscale_handler(network, flags, stacks, this_model):
     raise NotImplementedError
+
+
+class GlorotUniform(neon.initializers.GlorotUniform):
+    def __init__(self, name="autouniformInit", gain=1.0):
+        if gain == 'relu':
+            gain = np.sqrt(2)
+        super(GlorotUniform, self).__init__(name)
+        self.gain = gain
+
+    def fill(self, param):
+        k = self.gain * np.sqrt(6.0 / (param.shape[0] + param.shape[1]))
+        param[:] = self.be.rng.uniform(-k, k, param.shape)
 
 
 def num_filters_handler(network, flags, stacks, this_model):
@@ -334,39 +356,28 @@ def num_filters_handler(network, flags, stacks, this_model):
     #    paramlayer = None  # sharegroup2params[sharegroup]
     # else:
     #    paramlayer = None
-    init = this_model.get('init', neon.initializers.GlorotUniform())
+    init = this_model.get('init', GlorotUniform())
     if 'init' in flags:
         init = flags['init']
+    if 'init_gain' in flags:
+        init = GlorotUniform(gain=flags['init_gain'])
+    else:
+        if nonlinearity == neon.transforms.Rectlin and nonlinearity.slope > 0:
+            alpha = nonlinearity.slope
+            init = GlorotUniform(gain=math.sqrt(2/(1+alpha**2)))
+        elif nonlinearity == neon.transforms.Rectlin:
+            init = GlorotUniform(gain='relu')
+        else:
+            pass
     if 'nobias' in flags:
         bias = None
     else:
         bias = neon.initializers.Constant(0.0)
 
-    # dim=len(lasagne.layers.get_output_shape(network))-2 #XXX
-    # dim=2
-#    if 'maxpool' in flags:
-#        assert filter_size>0
-#        network=sequential(layers=(network, Pooling(
-#            fshape=filter_size,
-#            stride=max(1, conv_stride),
-#            pad=0,
-#            op='max',
-#            name=layername,
-#            )))
-#    elif 'meanpool' in flags:
-#        assert filter_size>0
-#        network=sequential(layers=(network, Pooling(
-#            fshape=filter_size,
-#            stride=max(1, conv_stride),
-#            pad=0,
-#            op='avg',
-#            name=layername,
-#            )))
-#    elif 'upscale' in flags:
-#        raise NotImplementedError
-#    else:
+    #utils.walk(network)
+    dim = len(get_output_shape(network))-2
 
-    if 'dense' in flags:  # or dim==0
+    if 'dense' in flags or dim <= 1:
         paramlayer = sequential(layers=Affine(
                 nout=num_filters,
                 init=init,
@@ -387,7 +398,7 @@ def num_filters_handler(network, flags, stacks, this_model):
         if 'local' not in flags:
             assert filter_size > 0
             paramlayer = sequential(layers=Conv(
-                    fshape=(filter_size, filter_size, num_filters),
+                    fshape=(filter_size,)*dim+(num_filters,),
                     init=init,
                     bias=bias,
                     strides=max(1, conv_stride),
@@ -427,7 +438,7 @@ def noise_handler(network, flags, stacks, this_model):
     sigma = flags['noise']
     if sigma == True:
         sigma = 0.1
-    return sequential(layers=(network,NoiseLayer(sigma))), ()
+    return sequential(layers=(network, GaussianNoiseLayer(sigma))), ()
 
 
 def watch_handler(network, flags, stacks, this_model):
@@ -586,6 +597,10 @@ register_flag_handler('maxpool', maxpool_handler)
 register_flag_handler('slice', slice_handler)
 register_flag_handler('reshape', reshape_handler)
 
+def layer_handler(network):
+    print 'output_shape:', get_output_shape(network)
+
+register_layer_handler(layer_handler)
 
 class LayerSelector(neon.layers.Sequential):
     def __init__(self, *args, **kwargs):

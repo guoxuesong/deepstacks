@@ -267,7 +267,7 @@ def num_filters_handler(network, flags, stacks, this_model):
         if 'const' in flags:
             ww = theano.gradient.disconnected_grad(ww)
             if bb is not None:
-                bb = theano.gradient.disconnected_grad(bb) 
+                bb = theano.gradient.disconnected_grad(bb)
     else:
         init = this_model.get('init', lasagne.init.GlorotUniform)
         if 'init' in flags:
@@ -288,50 +288,6 @@ def num_filters_handler(network, flags, stacks, this_model):
             bb = lasagne.init.Constant(0.0)
 
     dim = len(lasagne.layers.get_output_shape(network))-2
-#    if 'maxpool' in flags or 'meanpool' in flags:
-#        convs={
-#                1:lasagne.layers.Pool1DLayer,
-#                2:lasagne.layers.Pool2DLayer,
-#                3:lasagne.layers.Pool3DLayer,
-#                }
-#        assert dim in convs
-#        conv=convs[dim]
-#    if 'maxpool' in flags:
-#        assert filter_size>0
-#        network = conv(
-#            network,  #num_filters=num_filters,
-#            pool_size=filter_size,
-#            stride=max(1, conv_stride),
-#            pad=0,
-#            mode='max',
-#            name=layername,
-#            )
-#    elif 'meanpool' in flags:
-#        assert filter_size>0
-#        network = conv(
-#            network,  #num_filters=num_filters,
-#            pool_size=filter_size,
-#            stride=max(1, conv_stride),
-#            pad=0,
-#            mode='average_inc_pad',
-#            name=layername,
-#            )
-#    elif 'upscale' in flags:
-#        assert filter_size>0
-#        convs={
-#                1:lasagne.layers.Upscale1DLayer,
-#                2:lasagne.layers.Upscale2DLayer,
-#                3:lasagne.layers.Upscale3DLayer,
-#                }
-#        assert dim in convs
-#        conv=convs[dim]
-#        network = conv(
-#            network,
-#            scale_factor=filter_size,
-#            name=layername,
-#            mode='repeat',
-#            )
-#    else:
 
     if 'dense' in flags or dim == 0:
         if 'bn' in flags:

@@ -105,9 +105,12 @@ def get_watchslice(watchpoints):
     return train_layers, train_tagslice, val_layers, val_tagslice
 
 
-def InputLayer(name):
-    return neon.layers.layer.DataTransform(
+def InputLayer(shape, name):
+    res = neon.layers.layer.DataTransform(
             neon.transforms.activation.Identity(), name=name)
+    assert shape[0] == res.be.bsz or shape[0] == None
+    res.configure(shape[1:])
+    return res
 
 
 def get_inputs(network):
@@ -115,6 +118,14 @@ def get_inputs(network):
     for layer in network.layers_fprop():
         if isinstance(layer, neon.layers.layer.DataTransform):
             res += [layer.name]
+    return res
+
+
+def get_shapes(network):
+    res = []
+    for layer in network.layers_fprop():
+        if isinstance(layer, neon.layers.layer.DataTransform):
+            res += [layer.in_shape]
     return res
 
 
