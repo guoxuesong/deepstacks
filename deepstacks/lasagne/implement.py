@@ -386,7 +386,7 @@ def num_filters_handler(network, flags, stacks, this_model):
                     )
                 savew = network.W
                 paramlayers += [network]
-                network = lasagne.layers.BatchNormLayer(network,beta=bb)
+                network = lasagne.layers.BatchNormLayer(network, beta=bb)
                 saveb = network.beta
                 paramlayers += [network]
                 network = lasagne.layers.NonlinearityLayer(
@@ -403,6 +403,7 @@ def num_filters_handler(network, flags, stacks, this_model):
                     name=layername,
                     untie_biases=True,
                     )
+                paramlayers += [network]
                 savew = network.W
                 saveb = network.b
     # paramlayers += [network]
@@ -634,7 +635,6 @@ register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)
 register_flag_handler('dimshuffle', dimshuffle_handler)
 # register_flag_handler_closer(num_filters_handler, num_filters_handler_closer)
-# register_flag_handler('bn', bn_handler)
 register_flag_handler('num_filters', num_filters_handler, (
     'maxpool', 'meanpool', 'upscale'))
 register_flag_handler('upscale', upscale_handler)
