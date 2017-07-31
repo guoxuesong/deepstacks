@@ -20,7 +20,6 @@ def ln(k, name=0, m=None):
 def push(k, name, m=None):
     return ((k, 0, 0, 0, name, 0, m or {}), )
 
-
 def pop(name):
     return ((0, 0, 0, 0, 0, 0, {'pop': name}), )
 
@@ -31,7 +30,7 @@ def roll(f, n, d=1, inscale=1.0, outscale=1.0, w=1, h=1, m=None):
     for i in range(n):
         res = (
                 (0, (f, f**i, w*h) if i != n-1
-                    else (int(f*inscale+0.5), f**i, w*h), 0,  0, 0, 0, {}),
+                    else (int(f/inscale+0.5), f**i, w*h), 0,  0, 0, 0, {}),
                 (0, f*d, 1,  1, 0, 0, {}),
                 (0, f*d, 1,  1, 0, 0, {}),
                 (0, int(f*outscale+0.5) if first
@@ -101,14 +100,14 @@ def swwae_unpooling(f, imagesize, poolsize, where, what):
 
 def inception(nfilters, name=0):
     return (
-            (0, 0, 3, 1, 0, 0, {'maxpool'}),
-            (0, nfilters[0], 1, 1, 0, 0, {}),
-            (2, nfilters[1], 1, 1, 0, 0, {}),
-            (3, nfilters[2], 1, 1, 0, 0, {}),
-            (0, nfilters[3], 3, 1, 0, 0, {}),
-            (5, nfilters[4], 1, 1, 0, 0, {}),
-            (0, nfilters[5], 5, 1, 0, 0, {}),
-            ((4, 2, 0, 5), 0, 0, 0, name, 0, {}),
+            (0, 0, 3, 1, 0, 0, {'maxpool': True, 'layername': 'pool'}),
+            (0, nfilters[0], 1, 1, 0, 0, {'layername': 'pool_proj'}),
+            (2, nfilters[1], 1, 1, 0, 0, {'layername': '1x1'}),
+            (3, nfilters[2], 1, 1, 0, 0, {'layername': '3x3_reduce'}),
+            (0, nfilters[3], 3, 1, 0, 0, {'layername': '3x3'}),
+            (5, nfilters[4], 1, 1, 0, 0, {'layername': '5x5_reduce'}),
+            (0, nfilters[5], 5, 1, 0, 0, {'layername': '5x5'}),
+            ((4, 2, 0, 5), 0, 0, 0, name, 0, {'layername': 'output'}),
             )
 
 share2data = {}
@@ -215,4 +214,15 @@ def switch(cond, ltrue, lfalse):
         res += macros(ltrue)
     else:
         res += macros(lfalse)
+    return res
+
+
+def namespace(nameprefix, l):
+    l = macros(l)
+    res = ()
+    for a in l:
+        m = a[-1].copy()
+        if 'layername' in m:
+            m['layername'] = nameprefix+m['layername']
+        res += (a[:-1]+(m,),)
     return res
