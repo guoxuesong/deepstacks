@@ -71,6 +71,26 @@ def curr_model():
     pass
 
 
+def softmax():
+    pass
+
+
+def rectify():
+    pass
+
+
+def sigmoid():
+    pass
+
+
+def tanh():
+    pass
+
+
+def linear():
+    pass
+
+
 flag_list = []
 flag_handler = {}
 flag_excluding = {}
@@ -162,6 +182,13 @@ def register_layer_handler(f):
     global layer_handler
     layer_handler = f
 
+nonlinearities = None
+
+
+def register_nonlinearities(m):
+    global nonlinearities
+    nonlinearities = m
+
 
 def build_network(network, a, m={}, **kwargs):
     # a=((INPUTS,flags),)*N
@@ -199,6 +226,9 @@ def build_network(network, a, m={}, **kwargs):
             info = info+({},)
 
         flags = info[-1]
+        if type(inputs) == list and len(inputs) == 1 and type(inputs[0]) == tuple:
+            inputs = tuple(map(lambda x: [x], inputs[0]))
+
         if type(inputs) == int or type(inputs) == str or type(inputs) == list:
             network = get_layer(inputs)
         elif type(inputs) == tuple:
@@ -219,7 +249,12 @@ def build_network(network, a, m={}, **kwargs):
             curr_stacks: stacks,
             curr_layer: network,
             curr_flags: info[-1],
-            curr_model: this_model
+            curr_model: this_model,
+            softmax: nonlinearities['softmax'],
+            rectify: nonlinearities['rectify'],
+            sigmoid: nonlinearities['sigmoid'],
+            tanh: nonlinearities['tanh'],
+            linear: nonlinearities['linear'],
             })
         flags = info[-1]
 
