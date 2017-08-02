@@ -10,12 +10,13 @@ import math
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
 from ..stacked import register_flag_handler, register_network_wrapper
-from ..stacked import register_macro_handler
+from ..stacked import register_macro_handler, register_nonlinearities
 from ..stacked import *
 from neon.layers.layer import Affine, Activation, Linear, SkipNode
 from neon.layers.layer import Bias, BranchNode, GeneralizedCost
-from neon.layers.layer import Reshape, Pooling, Conv, Layer
+from neon.layers.layer import Reshape, Pooling, Conv, Layer, LRN
 from neon.layers.container import Sequential, MergeSum, MergeBroadcast
+from neon.initializers import GlorotUniform as NeonGlorotUniform
 import utils
 
 
@@ -50,6 +51,62 @@ class GaussianNoiseLayer(Layer):
         # for better performance, mkl do nothing
         # otherwise, convert back and deal with beta and alpha.
         self.be.bprop_skipnode(error, self.deltas, alpha, beta)
+        return self.deltas
+
+
+class DimshuffleLayer(Layer):
+    def __init__(self, pattern, name=None):
+        super(GaussianNoiseLayer, self).__init__(name)
+        self.pattern = pattern
+        self.owns_delta = True
+        self.is_mklop = True
+
+    def fprop(self, inputs=None, inference=False, beta=0):
+        self.be.copy_transpose(inputs, self.outputs, axis=self.pattern)
+        return self.outputs
+
+    def configure(self, in_obj):
+        super(GaussianNoiseLayer, self).configure(in_obj)
+
+        input_shape = (self.be.bsz,)+self.in_shape
+
+        # Copy from lasagne/layers/shape.py
+        #
+        # Build output shape while keeping track of the dimensions that we are
+        # attempting to collapse, so we can ensure that they are broadcastable
+        output_shape = []
+        dims_used = [False] * len(input_shape)
+        for p in self.pattern:
+            if isinstance(p, int):
+                if p < 0 or p >= len(input_shape):
+                    raise ValueError("pattern contains {0}, but input shape "
+                                     "has {1} dimensions "
+                                     "only".format(p, len(input_shape)))
+                # Dimension p
+                o = input_shape[p]
+                dims_used[p] = True
+            elif p == 'x':
+                # Broadcast; will be of size 1
+                o = 1
+            output_shape.append(o)
+
+        for i, (dim_size, used) in enumerate(zip(input_shape, dims_used)):
+            if not used and dim_size != 1 and dim_size is not None:
+                raise ValueError(
+                    "pattern attempted to collapse dimension "
+                    "{0} of size {1}; dimensions with size != 1/None are not"
+                    "broadcastable and cannot be "
+                    "collapsed".format(i, dim_size))
+
+        ###
+
+        self.out_shape = tuple(output_shape)
+
+        return self
+
+    def bprop(self, error, alpha=1.0, beta=0.0):
+        self.be.copy_transpose(
+                error, self.deltas, axis=np.argsort(self.pattern))
         return self.deltas
 
 
@@ -296,7 +353,7 @@ def upscale_handler(network, flags, stacks, this_model):
     raise NotImplementedError
 
 
-class GlorotUniform(neon.initializers.GlorotUniform):
+class GlorotUniform(NeonGlorotUniform):
     def __init__(self, name="autouniformInit", gain=1.0):
         if gain == 'relu':
             gain = np.sqrt(2)
@@ -374,7 +431,7 @@ def num_filters_handler(network, flags, stacks, this_model):
     else:
         bias = neon.initializers.Constant(0.0)
 
-    #utils.walk(network)
+    # utils.walk(network)
     dim = len(get_output_shape(network))-2
 
     if 'dense' in flags or dim <= 1:
@@ -431,7 +488,8 @@ def num_filters_handler(network, flags, stacks, this_model):
 
 
 def dimshuffle_handler(network, flags, stacks, this_model):
-    raise NotImplementedError
+    pattern = flags['dimshuffle']
+    return sequential(layers=(network, DimshuffleLayer(pattern))), ()
 
 
 def noise_handler(network, flags, stacks, this_model):
@@ -439,6 +497,21 @@ def noise_handler(network, flags, stacks, this_model):
     if sigma == True:
         sigma = 0.1
     return sequential(layers=(network, GaussianNoiseLayer(sigma))), ()
+
+
+def lrn_handler(network, flags, stacks, this_model):
+    if type(flags['lrn']) == dict:
+        lasagne_lru = flags['lrn']
+    else:
+        lasagne_lru = {}
+    N = 1e4  # XXX
+    kwargs = {}
+    k = lasagne_lru.get('k', 2)
+    assert k == 1
+    kwargs['ascale'] = lasagne_lru.get('alpha', 1e-4)*N  # XXX
+    kwargs['bpower'] = lasagne_lru.get('beta', 0.75)
+    kwargs['depth'] = lasagne_lru.get('n', 5)
+    return sequential(network, LRN(**kwargs)), ()
 
 
 def watch_handler(network, flags, stacks, this_model):
@@ -585,6 +658,7 @@ register_flag_handler('branch', branch_handler)
 register_flag_handler('relu', relu_handler)
 register_flag_handler('nonlinearity', nonlinearity_handler, ('num_filters', ))
 register_flag_handler('noise', noise_handler)
+register_flag_handler('lrn', lrn_handler)
 register_flag_handler('unargmax', unargmax_handler)
 register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)
@@ -732,3 +806,11 @@ def branchs(a):
 
 
 register_macro_handler(branchs)
+
+register_nonlinearities({
+            'softmax': neon.transforms.activation.Softmax(),
+            'rectify': neon.transforms.activation.Rectlin(),
+            'sigmoid': neon.transforms.activation.Logistic(),
+            'tanh': neon.transforms.activation.Tanh(),
+            'linear': neon.transforms.activation.Identity(),
+            })

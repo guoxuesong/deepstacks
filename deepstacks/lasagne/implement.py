@@ -10,9 +10,9 @@ import math
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
 from ..stacked import register_flag_handler, register_flag_handler_closer
-from ..stacked import register_layer_handler
+from ..stacked import register_layer_handler, register_nonlinearities
 from ..stacked import *
-from .curry import curry
+from ..util.curry import curry
 from .argmax import goroshin_max, goroshin_argmax, goroshin_unargmax
 
 
@@ -437,6 +437,14 @@ def noise_handler(network, flags, stacks, this_model):
     return lasagne.layers.GaussianNoiseLayer(network, sigma), ()
 
 
+def lrn_handler(network, flags, stacks, this_model):
+    if type(flags['lrn']) == dict:
+        return lasagne.layers.LocalResponseNormalization2DLayer(
+            network, **flags['lrn']), ()
+    else:
+        return lasagne.layers.LocalResponseNormalization2DLayer(network), ()
+
+
 def watch_handler(network, flags, stacks, this_model):
     get_layer = this_model['get_layer']
 
@@ -630,6 +638,7 @@ register_flag_handler('watch', watch_handler)
 register_flag_handler('relu', relu_handler)
 register_flag_handler('nonlinearity', nonlinearity_handler, ('num_filters', ))
 register_flag_handler('noise', noise_handler)
+register_flag_handler('lrn', lrn_handler)
 register_flag_handler('unargmax', unargmax_handler)
 register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)
@@ -648,3 +657,12 @@ def layer_handler(network):
     print 'output_shape:', lasagne.layers.get_output_shape(network)
 
 register_layer_handler(layer_handler)
+
+
+register_nonlinearities({
+            'softmax': lasagne.nonlinearities.softmax,
+            'rectify': lasagne.nonlinearities.rectify,
+            'sigmoid': lasagne.nonlinearities.sigmoid,
+            'tanh': lasagne.nonlinearities.tanh,
+            'linear': lasagne.nonlinearities.linear,
+            })

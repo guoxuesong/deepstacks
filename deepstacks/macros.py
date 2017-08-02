@@ -20,6 +20,7 @@ def ln(k, name=0, m=None):
 def push(k, name, m=None):
     return ((k, 0, 0, 0, name, 0, m or {}), )
 
+
 def pop(name):
     return ((0, 0, 0, 0, 0, 0, {'pop': name}), )
 
@@ -30,15 +31,15 @@ def roll(f, n, d=1, inscale=1.0, outscale=1.0, w=1, h=1, m=None):
     for i in range(n):
         res = (
                 (0, (f, f**i, w*h) if i != n-1
-                    else (int(f/inscale+0.5), f**i, w*h), 0,  0, 0, 0, {}),
+                    else (int(round(f/inscale)), f**i, w*h), 0,  0, 0, 0, {}),
                 (0, f*d, 1,  1, 0, 0, {}),
                 (0, f*d, 1,  1, 0, 0, {}),
-                (0, int(f*outscale+0.5) if first
+                (0, int(round(f*outscale)) if first
                     else f, 1,  1, 0, 0, (m or {}) if first else {}),
                 )+res
         first = False
     res += (
-        (0, (int(f**n*outscale+0.5), w, h), 0, 0, 0, 0, {}),
+        (0, (int(round((f**n)*outscale)), w, h), 0, 0, 0, 0, {}),
         )
     return res
 
