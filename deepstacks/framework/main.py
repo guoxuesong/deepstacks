@@ -489,6 +489,13 @@ def register_network_builder(build_network):
     global network_builder
     network_builder=build_network
 
+model_handlers=[]
+
+def register_model_handler(h):
+    global model_handlers
+    model_handlers+=[h]
+
+
 quit_flag=False
 
 #frames=270
@@ -1224,6 +1231,8 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
     delta_errors,state_layers,hidestate_layers,delta_layers,delta_predict_networks = [],[],[],[],[]
     zeroarch_networks,zeroarch_bnlayer,watcher_network,updater = None,None,None,None
     network,stacks,layers,raw_errors,raw_watchpoints = network_builder(inputs)
+    for h in model_handlers:
+        h(inputs,network,stacks,layers,raw_errors,raw_watchpoints)
     
     #all_networks,ordered_errors,ordered_watch_errors,conv_groups = network_builder(inputs)
     all_networks=[create_layers_dict(layers)]
@@ -1348,12 +1357,12 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
 
     
 
-    walker_fn = None
-
-    if 'predict' in conv_groups:
-        key='predict'
-    else:
-        key='output'
+#    walker_fn = None
+#
+#    if 'predict' in conv_groups:
+#        key='predict'
+#    else:
+#        key='output'
 #    if not using_fingerprint:
 #        predict_fn = theano.function([inputs['source_image'].input_var,inputs['action'].input_var], 
 #            lasagne.layers.get_output(conv_groups[key][0],deterministic=True),
