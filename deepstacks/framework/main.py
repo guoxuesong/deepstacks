@@ -11,7 +11,6 @@ from deepstacks.macros import *
 #using_nolearn=False
 
 from ..util.floatXconst import * 
-from ..util.async_iterate import *
 from ..lasagne.utils import ordered_errors as get_ordered_errors
 
 import sys
@@ -490,11 +489,6 @@ def register_network_builder(build_network):
     global network_builder
     network_builder=build_network
 
-#using_fingerprint=False
-#def set_using_fingerprint(val):
-#    global using_fingerprint
-#    using_fingerprint=val
-
 quit_flag=False
 
 #frames=270
@@ -514,13 +508,6 @@ quit_flag=False
 #                writenpy(npyfile,(3,64,64),np.arange(len(a))+base,a,fast=True)
 #                base+=len(a)
 #    return curry(readnpy,npyfile,(3,64,64))
-
-def create_fingerprint(a,n):
-    res = np.zeros((len(a),n,1,1),dtype=floatX)
-    for i in range(n):
-        res[:,i,0,0]=a%2
-        a=a>>1
-    return res
 
 #minibatch_handlers=[]
 #def register_minibatch_handler(h):
@@ -850,11 +837,6 @@ def imshow64x64(name,img):
 #    if right is not None:
 #        cv2.imshow('right',right)
 #        cv2.moveWindow("right",64*10,0)
-
-is_autoencoder=False
-def set_autoencoder(val):
-    global is_autoencoder
-    is_autoencoder=val
 
 ignore_output=False
 def set_ignore_output(val):

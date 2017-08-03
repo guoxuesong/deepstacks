@@ -2,11 +2,26 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
+import os
+import random
 import numpy as np
 from .main import register_batch_iterator
+from ..util.curry import curry
+from ..util.multinpy import readnpy,writenpy
+from ..util.async_iterate import AsyncIterate
 
+import theano
+floatX=theano.config.floatX
+
+num_actions=6
+num_extra_actions=4
 frames=270
 rl_dummy=16
+
+is_autoencoder=False
+def set_autoencoder(val):
+    global is_autoencoder
+    is_autoencoder=val
 
 
 def load_dataset():
@@ -33,6 +48,30 @@ def register_minibatch_handler(h):
 centralize=False
 one_direction=False
 
+using_fingerprint=False
+def set_using_fingerprint(val):
+    global using_fingerprint
+    using_fingerprint=val
+
+
+def create_fingerprint(a,n):
+    res = np.zeros((len(a),n,1,1),dtype=floatX)
+    for i in range(n):
+        res[:,i,0,0]=a%2
+        a=a>>1
+    return res
+
+def build_action_sample(n,d,zero=False):
+    value=(np.random.rand(n,num_actions,1,1)*1.0).astype(theano.config.floatX)
+    for j in range(n):
+        k=int(random.random()*d)
+        for i in range(0,num_actions):
+            if i!=k:
+                value[j,i,0,0]=0
+    if zero:
+        value[0,:,:,:]=np.zeros_like(value[0,:,:,:])
+    return value
+
 def iterate_minibatches(aa,stage,batchsize,iteratesize=400, shuffle=False, idx=False):
     rangeframes=frames/90*10
     unitframes=frames/90*10
@@ -48,8 +87,8 @@ def iterate_minibatches(aa,stage,batchsize,iteratesize=400, shuffle=False, idx=F
         else:
             batchsize=batchsize0
         if stage=='train':
-            actions1=np.zeros((batchsize,handledata.num_curr_actions,1,1),dtype=floatX)
-            #actions2=np.zeros((batchsize,handledata.num_curr_actions,1,1),dtype=floatX)
+            actions1=np.zeros((batchsize,num_actions,1,1),dtype=floatX)
+            #actions2=np.zeros((batchsize,num_actions,1,1),dtype=floatX)
             k=(np.random.rand(batchsize)*800).astype('int')
             beginpos=rangeframes+(np.random.rand(batchsize)*(frames-rangeframes*2)).astype('int')
             if centralize:
@@ -81,8 +120,8 @@ def iterate_minibatches(aa,stage,batchsize,iteratesize=400, shuffle=False, idx=F
             #    np.zeros((batchsize,6,1,1),dtype=floatX)
             #    ),axis=1)
         else:
-            #actions1=np.zeros((batchsize,handledata.num_curr_actions,1,1),dtype=floatX)
-            actions2=np.zeros((batchsize,handledata.num_curr_actions,1,1),dtype=floatX)
+            #actions1=np.zeros((batchsize,num_actions,1,1),dtype=floatX)
+            actions2=np.zeros((batchsize,num_actions,1,1),dtype=floatX)
             k=(np.random.rand(batchsize)*800).astype('int')
             #action1=(np.random.rand(batchsize)*rangeframes).astype('int')
             action2=(np.random.rand(batchsize)*rangeframes).astype('int')
