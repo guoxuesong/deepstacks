@@ -5,18 +5,19 @@
 import theano
 import lasagne
 from join import join_layer as JoinLayer
+from ..util.curry import curry
 
 floatX = theano.config.floatX
 
 
-def ordered_errors(errors, m=None, prefix=''):
+def ordered_errors(errors, m=None, prefix='', deterministic=False):
     res = []
     for t in errors:
         if m is None:
-            res += [[prefix+t, map(lasagne.layers.get_output, errors[t])]]
+            res += [[prefix+t, map(curry(lasagne.layers.get_output,deterministic=deterministic), errors[t])]]
         else:
             tmp = map(lambda x: JoinLayer(x, m), errors[t])
-            res += [[prefix+t, map(lasagne.layers.get_output, tmp)]]
+            res += [[prefix+t, map(curry(lasagne.layers.get_output,deterministic=deterministic), tmp)]]
     return sorted(res, key=lambda x: x[0])
 
 
