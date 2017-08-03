@@ -785,12 +785,6 @@ def list_transpose(a):
 #    value=T.set_subtensor(value[0],T.zeros_like(value[0]))
 #    return value
 
-def imshow64x64(name,img):
-    w,h,c=img.shape
-    if w==256:
-        img=img[::4,::4,:]
-    cv2.imshow(name,img)
-
 #def show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,t,bottom=None,right=None):
 #    t=t%len(predictsloop)
 #    w=64

@@ -2,10 +2,18 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
+import theano
 import lasagne
-from .main import batch_iterator_train,batch_iterator_test
-from .main import register_training_callbacks
+import numpy as np
+import cv2
+import main
+#from .main import batch_iterator_train,batch_iterator_test
+from .main import register_training_callbacks, register_model_handler
 from ..util.curry import curry
+
+floatX=theano.config.floatX
+
+using_fingerprint=False
 
 def imnorm(x):#{{{
     M=np.max(x)
@@ -16,8 +24,19 @@ def imnorm(x):#{{{
     res=((x-m)*1.0/l*255.0).astype('uint8')
     return res#}}}
 
-num_batchsize = None
+visual_keys=[]
+visual_vars=[]
+visual_varnames=[]
+def register_visual(key):
+    global visual_keys
+    visual_keys+=[key]
+def register_visual_var(name,var):
+    global visual_vars
+    global visual_varnames
+    visual_vars+=[var]
+    visual_varnames+=[name]
 
+num_batchsize = None
 walker_fn = None
 predict_fn = None
 visual_fn = None
@@ -54,13 +73,18 @@ def mybatchok():
     cv2.waitKey(100)
     sn+=1
 
+def imshow64x64(name,img):
+    w,h,c=img.shape
+    if w==256:
+        img=img[::4,::4,:]
+    cv2.imshow(name,img)
+
 def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=None):
     t=t%len(predictsloop)
     w=64
     h=64
     xscreenbase=0
     yscreenbase=0
-    num_batchsize=src[0].shape[0]
     for i in range(num_batchsize):
         for j in range(len(src)):
             #j=0
@@ -111,18 +135,18 @@ def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=
 
 visualize_validation_set=False
 
-def myupdate(walker_fn):
+def myupdate():
     global src,norms,predictsloop,predictsloop2,predictsloop3
     if visualize_validation_set:
-        iterate_fn=batch_iterator_test
+        iterate_fn=main.batch_iterator_test
     else:
-        iterate_fn=batch_iterator_train
+        iterate_fn=main.batch_iterator_train
     src=None
     norms=None
     predictsloop=[]
     predictsloop2=[]
     predictsloop3=[]
-    it=iterate_fn(batchsize)
+    it=iterate_fn(num_batchsize)
     for batch in it:
         #inputs, inputs2, actions, outputs, outputs2, rewards, targets, flags = batch
 
@@ -134,7 +158,6 @@ def myupdate(walker_fn):
         #    inputs=inputs[:,:,::4,::4]
         #    outputs=outputs[:,:,::4,::4]
 
-        visual_varnames=[]
         vis_args = [batch[key] for key in visual_varnames]
         vis = visual_fn(inputs,actions,*vis_args)
         #srchide0=hides[0]
@@ -148,8 +171,7 @@ def myupdate(walker_fn):
         #        np.concatenate((actions,np.zeros((num_batchsize,2,1,1),dtype=floatX)),axis=1),
         #        outputs)
 
-        batchsize,_,ig1,ig2=actions.shape
-        num_actions=handledata.num_curr_actions
+        num_actions=6
 
         p=[inputs]*(num_actions+4)
         for t in range(5):
@@ -159,9 +181,9 @@ def myupdate(walker_fn):
             for i in range(num_actions+4):
 
                 if t>0:
-                    actions1=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*batchsize,axis=0).reshape(batchsize,num_actions+4,1,1)*(0.1)
+                    actions1=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*num_batchsize,axis=0).reshape(num_batchsize,num_actions+4,1,1)*(0.1)
                 else:
-                    actions1=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*batchsize,axis=0).reshape(batchsize,num_actions+4,1,1)*(0.0)
+                    actions1=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*num_batchsize,axis=0).reshape(num_batchsize,num_actions+4,1,1)*(0.0)
                     #print 'predict actions',actions1
                 if not using_fingerprint:
                     predict=predict_fn(
@@ -178,7 +200,7 @@ def myupdate(walker_fn):
                         )
                 predicts+=[predict]
 
-                actions2=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*batchsize,axis=0).reshape(batchsize,num_actions+4,1,1)*(0.1*t)
+                actions2=np.concatenate((np.eye(num_actions+4,dtype=floatX)[i:i+1],)*num_batchsize,axis=0).reshape(num_batchsize,num_actions+4,1,1)*(0.1*t)
                 if not using_fingerprint:
                     predict=predict_fn(
                         inputs,
@@ -198,7 +220,7 @@ def myupdate(walker_fn):
             #predictsloop+=[map(deconv3_fn,predicts)]
             predictsloop2+=[predicts2]
 
-        #tmp=list_transpose(sources) # (batchsize,actions,[features,width,height])
+        #tmp=list_transpose(sources) # (num_batchsize,actions,[features,width,height])
         #for j in range(8):
         #    print [(x**2).sum()**0.5 for x in tmp[j][0:4]]
         #print np. asarray(bn_std)

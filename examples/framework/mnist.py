@@ -6,6 +6,7 @@ import deepstacks
 from deepstacks.framework.main import *
 import deepstacks.framework.using_mnist
 from deepstacks.macros import *
+from deepstacks.framework.macros import *
 from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model,curr_batchsize
 
 
@@ -23,12 +24,8 @@ def build_cnn(inputs):
         (0,10,0,0,0,0,{
             'dense':True,
             'nonlinearity':lasagne.nonlinearities.softmax,
-            'equal':['y','classify',lasagne.objectives.categorical_crossentropy,],
-            }),
-        (0,0,0,0,0,0,{
-            'nonlinearity':lambda x:T.argmax(x, axis=1),'shape':(curr_batchsize,),
-            'watch':['y','val:accuracy',T.eq],
-            }),
+            })
+        (classify,'y'),
         ),{
             'y':y
             })

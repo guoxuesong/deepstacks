@@ -1,9 +1,8 @@
-DEEPSTACKS
-==========
+DEEPSTACKS.LASAGNE
+==================
 
-A build_network() for Lasagne and noen. Define your network model in a
-datacheet with stack machine mechanisms.  Support reuse part of model as
-function, and share parameters.
+A high-level model representation and framework for Lasagne, with limited
+support for neon.
 
 Philosophy
 ----------
@@ -52,8 +51,11 @@ Deepstacks intend to be this kind of tool, for professional. The user need to
 remember the meaning of ever fields, and what flags can be used in the {}. But
 after that, you can get good performance.
 
+Document
+-------
+
 Fields
-------
+~~~~~~
 
 A deepstacks line composed with 6 fields and a flags dict, the 6 fields are:
 
@@ -83,7 +85,7 @@ as shape.
 it 0, macro 'share' and 'call' will handle it.
 
 Flags
------
+~~~~~
 
 Following flags take effect in order:
 
