@@ -7,6 +7,15 @@ from .main import batch_iterator_train,batch_iterator_test
 from .main import register_training_callbacks
 from ..util.curry import curry
 
+def imnorm(x):#{{{
+    M=np.max(x)
+    m=np.min(x)
+    l=M-m
+    if l==0:
+        l=1.0
+    res=((x-m)*1.0/l*255.0).astype('uint8')
+    return res#}}}
+
 num_batchsize = None
 
 walker_fn = None
