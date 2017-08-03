@@ -1164,17 +1164,17 @@ def deletelayers(l):
         res+=(a[:-1]+(m,),)
     return res
 
-#on_batch_finished=[]
-#on_epoch_finished=[]
-#on_training_started=[]
-#on_training_finished=[]
-#
-#def register_nolearn_callbacks(bf,ef,ts,tf):
-#    global on_batch_finished, on_epoch_finished, on_training_started, on_training_finished
-#    on_batch_finished+=bf
-#    on_epoch_finished+=ef
-#    on_training_started+=ts
-#    on_training_finished+=tf
+on_batch_finished=[]
+on_epoch_finished=[]
+on_training_started=[]
+on_training_finished=[]
+
+def register_training_callbacks(bf,ef,ts,tf):
+    global on_batch_finished, on_epoch_finished, on_training_started, on_training_finished
+    on_batch_finished+=bf
+    on_epoch_finished+=ef
+    on_training_started+=ts
+    on_training_finished+=tf
 
 def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,momentum=0.9,num_params=[],num_layers=[],supervised=False,transform=True,grads_clip=1.0,accumulation=1):
 #    if batch_iterator_train is None:
@@ -1459,11 +1459,15 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                 allow_input_downcast=True,
                 )
 
+        for h in on_training_started:
+            h()
+
         min_loss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
             easyshared.update()
             break_flag = False
+
 
             # In each epoch, we do a full pass over the training data:
             train_err = 0
@@ -1499,6 +1503,9 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     train_batches += 1
                     count = count+1
 
+                    for h in on_batch_finished:
+                        h()
+
                     sys.stdout.write(".")
 
                     #show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,num_actions,i)
@@ -1512,7 +1519,7 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     print "Epoch {}:{} of {} took {:.3f}s".format(
                         epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time) 
                 else:
-                    print "Epoch {} of {} took {:.3f}s".format(
+                    print "Training {} of {} took {:.3f}s".format(
                         epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
                 avg_err = train_err / train_batches
                 #print "  training loss:\t\t{:.6f}".format(avg_err)
@@ -1597,6 +1604,8 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     break
                 loopcount+=1
 
+            for h in on_epoch_finished:
+                h()
             while gc.collect() > 0:
                 pass
             #print 'gc'
@@ -1604,6 +1613,8 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
             #print np.mean(tmp)
             if break_flag or 0xFF & cv2.waitKey(100) == 27:
                 break
+        for h in on_training_finished:
+            h()
 
 
 def main():

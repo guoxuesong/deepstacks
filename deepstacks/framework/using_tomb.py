@@ -251,4 +251,4 @@ def iterate_minibatches(aa,stage,batchsize,iteratesize=400, shuffle=False, idx=F
         i+=1
 
 aa = load_dataset()
-register_batch_iterator(AsyncIterate(curry(iterate_minibatches,aa,'train',iteratesize=400,shuffle=True)),AsyncIterate(curry(iterate_minibatches,aa,'val',iteratesize=1,shuffle=True)))
+register_batch_iterator(AsyncIterate(curry(iterate_minibatches,aa,'train',iteratesize=400,shuffle=True)),AsyncIterate(curry(iterate_minibatches,aa,'val',iteratesize=40,shuffle=True)))

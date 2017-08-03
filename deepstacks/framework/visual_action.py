@@ -2,15 +2,20 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
-from .main import register_nolearn_callbacks
+import lasagne
+from .main import batch_iterator_train,batch_iterator_test
+from .main import register_training_callbacks
 from ..util.curry import curry
 
+num_batchsize = None
 
 walker_fn = None
 predict_fn = None
 visual_fn = None
-def handle_finish(inputs,network,stacks,layers,errors,watchpoints):
-    global predict_fn,visual_fn
+def handle_model(inputs,network,stacks,layers,errors,watchpoints):
+    global predict_fn,visual_fn,num_batchsize
+
+    num_batchsize=lasagne.layers.get_output_shape(network)[0]
 
     if 'predict' in stacks:
         key='predict'
@@ -23,6 +28,7 @@ def handle_finish(inputs,network,stacks,layers,errors,watchpoints):
         [lasagne.layers.get_output(stacks[key][0],deterministic=True) for key in visual_keys],
         on_unused_input='warn', allow_input_downcast=True)
 
+register_model_handler(handle_model)
 
 src=None
 norms=None
@@ -33,7 +39,7 @@ bottom=None
 right=None
 
 sn=0
-def mybatchok(net,history):
+def mybatchok():
     global sn
     show(src,norms,predictsloop,predictsloop2,predictsloop3,sn,bottom=bottom,right=right)
     cv2.waitKey(100)
@@ -96,30 +102,31 @@ def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=
 
 visualize_validation_set=False
 
-def myupdate(walker_fn,net,history):
+def myupdate(walker_fn):
     global src,norms,predictsloop,predictsloop2,predictsloop3
     if visualize_validation_set:
-        iterate_fn=net.batch_iterator_test
+        iterate_fn=batch_iterator_test
     else:
-        iterate_fn=net.batch_iterator_train
+        iterate_fn=batch_iterator_train
     src=None
     norms=None
     predictsloop=[]
     predictsloop2=[]
     predictsloop3=[]
-    it=iterate_fn(None,None)
+    it=iterate_fn(batchsize)
     for batch in it:
         #inputs, inputs2, actions, outputs, outputs2, rewards, targets, flags = batch
 
-        inputs = batch[0]['source_image']
-        actions = batch[0]['action']
-        outputs = batch[0]['target_image']
+        inputs = batch['source_image']
+        actions = batch['action']
+        outputs = batch['target_image']
 
         #if inputs.shape[2]==256:
         #    inputs=inputs[:,:,::4,::4]
         #    outputs=outputs[:,:,::4,::4]
 
-        vis_args = [batch[0][key] for key in visual_varnames]
+        visual_varnames=[]
+        vis_args = [batch[key] for key in visual_varnames]
         vis = visual_fn(inputs,actions,*vis_args)
         #srchide0=hides[0]
         #srchide1=hides[1]
@@ -155,9 +162,9 @@ def myupdate(walker_fn,net,history):
                 else:
                     predict=predict_fn(
                         p[i],
-                        batch[0]['source_fingerprint'], #XXX
+                        batch['source_fingerprint'], #XXX
                         outputs,#XXX
-                        batch[0]['target_fingerprint'], #XXX
+                        batch['target_fingerprint'], #XXX
                         actions1,
                         )
                 predicts+=[predict]
@@ -171,9 +178,9 @@ def myupdate(walker_fn,net,history):
                 else:
                     predict=predict_fn(
                         inputs,
-                        batch[0]['source_fingerprint'],
+                        batch['source_fingerprint'],
                         outputs,
-                        batch[0]['target_fingerprint'],
+                        batch['target_fingerprint'],
                         actions2,
                         )
                 predicts2+=[predict]
@@ -200,7 +207,7 @@ def myupdate(walker_fn,net,history):
         it.close()
         break
 
-register_nolearn_callbacks(
+register_training_callbacks(
         [ mybatchok ], 
         [ myupdate ],
         [ myupdate ],
