@@ -24,7 +24,7 @@ def build_cnn(inputs):
         (0,10,0,0,0,0,{
             'dense':True,
             'nonlinearity':lasagne.nonlinearities.softmax,
-            })
+            }),
         (classify,'y'),
         ),{
             'y':y
