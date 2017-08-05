@@ -135,6 +135,10 @@ def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=
 
 visualize_validation_set=False
 
+def set_visualize_validation_set(v):
+    global visualize_validation_set
+    visualize_validation_set=v
+
 def myupdate():
     global src,norms,predictsloop,predictsloop2,predictsloop3
     if visualize_validation_set:
