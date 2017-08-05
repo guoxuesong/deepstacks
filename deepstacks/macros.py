@@ -12,6 +12,8 @@ def macros(l):
             res += (a, )
     return res
 
+def macro(f,args,kwargs):
+    return f(*args,**kwargs)
 
 def ln(k, name=0, m=None):
     return ((k, 0, 0, 0, name, 0, m or {}), )
