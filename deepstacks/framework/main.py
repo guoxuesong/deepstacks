@@ -919,41 +919,40 @@ def plot_loss(net,pltskip):
     plt.legend(loc='best')
     return plt
 
-curr_epoch=None
 
-def myepochok():
-    #global bottom,right
-
-    #curr_epoch=epoch_begin+len(history)
-
-    save_params(curr_epoch,[
-        sorted_values(networks) for networks in all_networks
-        ],[],'hideconv-',deletelayers=[])
-    #print ''
-
-    #tr.print_diff()
-
-#    easyshared.update()
+#def myepochok():
+#    #global bottom,right
 #
-#    fig_size = plt.rcParams["figure.figsize"]
-#    fig_size[0] = 10
-#    fig_size[1] = 4
-#    plt.rcParams["figure.figsize"] = fig_size
-#    plt.clf()
-#    loss_plt=plot_loss(net,pltskip)
-#    loss_plt.savefig('loss.png',dpi=64)
-#    #print net.layers_['source']
-#    #feature_plt=nolearn.lasagne.visualize.plot_conv_weights(net.layers_['source'],figsize=(6, 6))
-#    #feature_plt.savefig('feature.png',dpi=64)
+#    #curr_epoch=epoch_begin+len(history)
 #
-#    bottom=cv2.imread('loss.png')
-#    #right=cv2.imread('feature.png')
+#    save_params(curr_epoch,[
+#        sorted_values(networks) for networks in all_networks
+#        ],[],'hideconv-',deletelayers=[])
+#    #print ''
 #
-#    #myupdate(epoch_begin,num_batchsize,all_networks,predict_fns,walker_fn,net,history)
+#    #tr.print_diff()
 #
-#    if len(history) % 5 == 0:
-#        while gc.collect() > 0:
-#            pass
+##    easyshared.update()
+##
+##    fig_size = plt.rcParams["figure.figsize"]
+##    fig_size[0] = 10
+##    fig_size[1] = 4
+##    plt.rcParams["figure.figsize"] = fig_size
+##    plt.clf()
+##    loss_plt=plot_loss(net,pltskip)
+##    loss_plt.savefig('loss.png',dpi=64)
+##    #print net.layers_['source']
+##    #feature_plt=nolearn.lasagne.visualize.plot_conv_weights(net.layers_['source'],figsize=(6, 6))
+##    #feature_plt.savefig('feature.png',dpi=64)
+##
+##    bottom=cv2.imread('loss.png')
+##    #right=cv2.imread('feature.png')
+##
+##    #myupdate(epoch_begin,num_batchsize,all_networks,predict_fns,walker_fn,net,history)
+##
+##    if len(history) % 5 == 0:
+##        while gc.collect() > 0:
+##            pass
 
 
 #visualize_validation_set=False
@@ -1168,7 +1167,7 @@ def deletelayers(l):
     return res
 
 on_batch_finished=[]
-on_epoch_finished=[myepochok]
+on_epoch_finished=[]
 on_training_started=[]
 on_training_finished=[]
 
@@ -1180,7 +1179,6 @@ def register_training_callbacks(bf,ef,ts,tf):
     on_training_finished+=tf
 
 def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,momentum=0.9,num_params=[],num_layers=[],supervised=False,transform=True,grads_clip=1.0,accumulation=1):
-    global curr_epoch
 #    if batch_iterator_train is None:
 #        loader=load_200
 #        iterate_minibatches=iterate_minibatches_200
@@ -1485,7 +1483,6 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
         min_loss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
-            curr_epoch = epoch
             easyshared.update()
             break_flag = False
 
@@ -1625,6 +1622,15 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     break
                 loopcount+=1
 
+            if train_err / train_batches < min_loss:
+                min_loss = train_err / train_batches
+                save_params(epoch+1,[
+                    sorted_values(networks) for networks in all_networks
+                    ],[],'hideconv-',deletelayers=[])
+            else:
+                save_params(epoch+1,[
+                    sorted_values(networks) for networks in all_networks
+                    ],[],'hideconv2-',deletelayers=[])
             for h in on_epoch_finished:
                 h()
             while gc.collect() > 0:
