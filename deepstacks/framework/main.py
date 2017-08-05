@@ -483,11 +483,17 @@ def create_layers_dict(conv_layers):#{{{
 #            ]
 #    return [res],errors,val_watch_errors,conv_groups
 
-network_builder=None #build_network
+network_builder=None
 
 def register_network_builder(build_network):
     global network_builder
     network_builder=build_network
+
+inference_handler=None
+
+def register_inference_handler(h):
+    global inference_handler 
+    inference_handler=h
 
 model_handlers=[]
 
@@ -839,19 +845,19 @@ def list_transpose(a):
 #        cv2.imshow('right',right)
 #        cv2.moveWindow("right",64*10,0)
 
-ignore_output=False
-def set_ignore_output(val):
-    global ignore_output
-    ignore_output=val
-
-objective_loss_function=mylossfunc
-def set_loss_function(f):
-    global objective_loss_function
-    objective_loss_function=f
-is_classify=False
-def set_classify(val):
-    global is_classify
-    is_classify=val
+#ignore_output=False
+#def set_ignore_output(val):
+#    global ignore_output
+#    ignore_output=val
+#
+#objective_loss_function=mylossfunc
+#def set_loss_function(f):
+#    global objective_loss_function
+#    objective_loss_function=f
+#is_classify=False
+#def set_classify(val):
+#    global is_classify
+#    is_classify=val
 
 #def objective(layers,myloss=None,deterministic=False,*args,**kwargs):
 #    if not is_autoencoder and not ignore_output:
@@ -913,39 +919,41 @@ def plot_loss(net,pltskip):
     plt.legend(loc='best')
     return plt
 
-def myepochok(epoch_begin,num_batchsize,all_networks,easyshared,pltskip,net,history):
-    global bottom,right
+curr_epoch=None
 
-    curr_epoch=epoch_begin+len(history)
+def myepochok():
+    #global bottom,right
+
+    #curr_epoch=epoch_begin+len(history)
 
     save_params(curr_epoch,[
         sorted_values(networks) for networks in all_networks
         ],[],'hideconv-',deletelayers=[])
-    print ''
+    #print ''
 
     #tr.print_diff()
 
-    easyshared.update()
-
-    fig_size = plt.rcParams["figure.figsize"]
-    fig_size[0] = 10
-    fig_size[1] = 4
-    plt.rcParams["figure.figsize"] = fig_size
-    plt.clf()
-    loss_plt=plot_loss(net,pltskip)
-    loss_plt.savefig('loss.png',dpi=64)
-    #print net.layers_['source']
-    #feature_plt=nolearn.lasagne.visualize.plot_conv_weights(net.layers_['source'],figsize=(6, 6))
-    #feature_plt.savefig('feature.png',dpi=64)
-
-    bottom=cv2.imread('loss.png')
-    #right=cv2.imread('feature.png')
-
-    #myupdate(epoch_begin,num_batchsize,all_networks,predict_fns,walker_fn,net,history)
-
-    if len(history) % 5 == 0:
-        while gc.collect() > 0:
-            pass
+#    easyshared.update()
+#
+#    fig_size = plt.rcParams["figure.figsize"]
+#    fig_size[0] = 10
+#    fig_size[1] = 4
+#    plt.rcParams["figure.figsize"] = fig_size
+#    plt.clf()
+#    loss_plt=plot_loss(net,pltskip)
+#    loss_plt.savefig('loss.png',dpi=64)
+#    #print net.layers_['source']
+#    #feature_plt=nolearn.lasagne.visualize.plot_conv_weights(net.layers_['source'],figsize=(6, 6))
+#    #feature_plt.savefig('feature.png',dpi=64)
+#
+#    bottom=cv2.imread('loss.png')
+#    #right=cv2.imread('feature.png')
+#
+#    #myupdate(epoch_begin,num_batchsize,all_networks,predict_fns,walker_fn,net,history)
+#
+#    if len(history) % 5 == 0:
+#        while gc.collect() > 0:
+#            pass
 
 
 #visualize_validation_set=False
@@ -1126,13 +1134,14 @@ def myepochok(epoch_begin,num_batchsize,all_networks,easyshared,pltskip,net,hist
 
 batch_iterator_train=None
 batch_iterator_test=None
-def register_batch_iterator(train,test):
-    global batch_iterator_train,batch_iterator_test
-    batch_iterator_train,batch_iterator_test=train,test
-def wrap_batch_iterator_train(num_batchsize,igx,igy):
-    return batch_iterator_train(num_batchsize)
-def wrap_batch_iterator_test(num_batchsize,igx,igy):
-    return batch_iterator_test(num_batchsize)
+batch_iterator_inference=None
+def register_batch_iterator(train,test,inference=None):
+    global batch_iterator_train,batch_iterator_test,batch_iterator_inference
+    batch_iterator_train,batch_iterator_test,batch_iterator_inference=train,test,inference
+#def wrap_batch_iterator_train(num_batchsize,igx,igy):
+#    return batch_iterator_train(num_batchsize)
+#def wrap_batch_iterator_test(num_batchsize,igx,igy):
+#    return batch_iterator_test(num_batchsize)
 
 def layers(l):
     return macros(l)
@@ -1159,7 +1168,7 @@ def deletelayers(l):
     return res
 
 on_batch_finished=[]
-on_epoch_finished=[]
+on_epoch_finished=[myepochok]
 on_training_started=[]
 on_training_finished=[]
 
@@ -1171,6 +1180,7 @@ def register_training_callbacks(bf,ef,ts,tf):
     on_training_finished+=tf
 
 def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,momentum=0.9,num_params=[],num_layers=[],supervised=False,transform=True,grads_clip=1.0,accumulation=1):
+    global curr_epoch
 #    if batch_iterator_train is None:
 #        loader=load_200
 #        iterate_minibatches=iterate_minibatches_200
@@ -1437,7 +1447,23 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
 #        net.fit(X0,np.zeros((num_batchsize,),dtype=floatX))
 #    else:
 
-    if True:
+    if mode=='inference':
+        if 'predict' in stacks:
+            key='predict'
+        else:
+            key='output'
+        inference_fn = theano.function(
+                map(lambda x:x.input_var,sorted_values(inputs)), 
+                map(lambda x:lasagne.layers.get_output(x,deterministic=True),stacks[key]),
+                on_unused_input='warn', 
+                allow_input_downcast=True,
+                )
+        print 'num_batchsize',num_batchsize
+        for batch in batch_iterator_inference(num_batchsize):
+            out = inference_fn(*sorted_values(batch))
+            if inference_handler is not None:
+                inference_handler(out[0])
+    elif mode=='training':
         updates = lasagne.updates.adamax(loss, params, learning_rate=learning_rate)
         train_fn = theano.function(
                 map(lambda x:x.input_var,sorted_values(inputs)), 
@@ -1459,6 +1485,7 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
         min_loss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
+            curr_epoch = epoch
             easyshared.update()
             break_flag = False
 
@@ -1610,14 +1637,120 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
         for h in on_training_finished:
             h()
 
-
+#=============================
 def main():
-    parser = argparse.ArgumentParser(description='Trains a neural network to handle 3d scene transforming on actions.')
-    parser.add_argument('mode',metavar='MODE',help="'training/a_star/explore'")
-    parser.add_argument('num_epochs',metavar='EPOCHS',type=int,help="number of training epochs to perform")
-    parser.add_argument('num_batchsize',metavar='BATCHSIZE',type=int,help="batchsize")
-    parser.add_argument('learning_rate',metavar='LEARNING_RATE',type=float,help="learning rate")
-    parser.add_argument('accumulation',metavar='ACCUMULATION',type=int,help="batch accumulation")
+#    parser = argparse.ArgumentParser(description='Trains a neural network to handle 3d scene transforming on actions.')
+#    parser.add_argument('mode',metavar='MODE',help="'training/inference'")
+#    parser.add_argument('num_epochs',metavar='EPOCHS',type=int,help="number of training epochs to perform")
+#    parser.add_argument('num_batchsize',metavar='BATCHSIZE',type=int,help="batchsize")
+#    parser.add_argument('learning_rate',metavar='LEARNING_RATE',type=float,help="learning rate")
+#    parser.add_argument('accumulation',metavar='ACCUMULATION',type=int,help="batch accumulation")
+
+    parser = argparse.ArgumentParser(description='Deepstacks.')
+
+    parser.add_argument('mode',metavar='MODE',help="training/inference")
+
+    def define_integer(key,default,desc):
+        parser.add_argument('--'+key,type=int,default=default,help=desc)
+
+    def define_string(key,default,desc):
+        parser.add_argument('--'+key,type=str,default=default,help=desc)
+
+    def define_float(key,default,desc):
+        parser.add_argument('--'+key,type=float,default=float(default),help=desc)
+
+    def define_boolean(key,default,desc):
+        parser.add_argument('--'+key,type=bool,default=default,help=desc)
+
+    # Basic model parameters. #float, integer, boolean, string
+    define_integer('batch_size', 16, """Number of images to process in a batch""")
+    define_integer(
+        'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
+    define_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
+    define_string('inference_db', '', """Directory with inference file source""")
+    define_integer(
+        'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
+    define_string('labels_list', '', """Text file listing label definitions""")
+    define_string('mean', '', """Mean image file""")
+    define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
+    define_string('network', '', """File containing network (model)""")
+    define_string('networkDirectory', '', """Directory in which network exists""")
+    define_string('optimization', 'sgd', """Optimization method""")
+    define_string('save', 'results', """Save directory""")
+    define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
+    define_boolean('shuffle', False, """Shuffle records before training""")
+    define_float(
+        'snapshotInterval', 1.0,
+        """Specifies the training epochs to be completed before taking a snapshot""")
+    define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
+    define_string(
+        'subtractMean', 'none',
+        """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
+    define_string('train_db', '', """Directory with training file source""")
+    define_string(
+        'train_labels', '',
+        """Directory with an optional and seperate labels file source for training""")
+    define_string('validation_db', '', """Directory with validation file source""")
+    define_string(
+        'validation_labels', '',
+        """Directory with an optional and seperate labels file source for validation""")
+    define_string(
+        'visualizeModelPath', '', """Constructs the current model for visualization""")
+    define_boolean(
+        'visualize_inf', False, """Will output weights and activations for an inference job.""")
+    define_string(
+        'weights', '', """Filename for weights of a model to use for fine-tuning""")
+
+    # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
+    define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
+
+    # @TODO(tzaman); remove torch mentions below
+    define_float('lr_base_rate', '0.01', """Learning rate""")
+    define_string(
+        'lr_policy', 'fixed',
+        """Learning rate policy. (fixed, step, exp, inv, multistep, poly, sigmoid)""")
+    define_float(
+        'lr_gamma', -1,
+        """Required to calculate learning rate. Applies to: (step, exp, inv, multistep, sigmoid)""")
+    define_float(
+        'lr_power', float('Inf'),
+        """Required to calculate learning rate. Applies to: (inv, poly)""")
+    define_string(
+        'lr_stepvalues', '',
+        """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
+        For the 'multistep' lr_policy you can input multiple values seperated by commas""")
+
+#    # Tensorflow-unique arguments for DIGITS
+#    define_string(
+#        'save_vars', 'all',
+#        """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
+#    define_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
+#    define_boolean(
+#        'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
+#    define_boolean('log_device_placement', False, """Whether to log device placement.""")
+#    define_integer(
+#        'log_runtime_stats_per_step', 0,
+#        """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+
+    # Augmentation
+    define_string(
+        'augFlip', 'none',
+        """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
+    define_float(
+        'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
+    define_float(
+        'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
+         as pre-processing  augmentation""")
+    define_boolean(
+        'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
+        dividing by its own standard deviation.""")
+    define_float(
+        'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
+    define_float(
+        'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
+    define_float(
+        'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
+
 
     args = parser.parse_args()
 
@@ -1632,10 +1765,11 @@ def main():
 
     kwargs = {}
     kwargs['mode'] = args.mode
-    kwargs['num_epochs'] = args.num_epochs
-    kwargs['num_batchsize'] = args.num_batchsize
-    kwargs['learning_rate'] = args.learning_rate
-    kwargs['accumulation'] = args.accumulation
+    kwargs['num_epochs'] = args.epoch
+    kwargs['num_batchsize'] = args.batch_size
+    kwargs['learning_rate'] = args.lr_base_rate
+    kwargs['momentum'] = args.momentum
+    #kwargs['accumulation'] = args.accumulation
 
     run(**kwargs)
     quit_flag=True
