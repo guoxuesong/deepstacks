@@ -191,6 +191,8 @@ def register_nonlinearities(m):
 
 
 def build_network(network, a, m={}, **kwargs):
+    if callable(a):
+        a=a()
     # a=((INPUTS,flags),)*N
 
     this_model = kwargs
