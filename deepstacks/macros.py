@@ -2,6 +2,22 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
+class LayerLoader(object):
+    def __init__(self):
+        self.layers=()
+
+    def __call__(self,*args,**kwargs):
+        if len(args)==0 and len(kwargs)==0:
+            for t in self.layers:
+                print t
+            return self.layers
+        if callable(args[0]):
+            self.layers+=((macro,args[0],args[1:],kwargs,),)
+        else:
+            self.layers+=(args+(kwargs,),)
+        return self
+
+prettylayers = LayerLoader()
 
 def macros(l):
     res = ()

@@ -189,7 +189,6 @@ def register_nonlinearities(m):
     global nonlinearities
     nonlinearities = m
 
-
 def build_network(network, a, m={}, **kwargs):
     if callable(a):
         a=a()
