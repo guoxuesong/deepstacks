@@ -444,6 +444,11 @@ def lrn_handler(network, flags, stacks, this_model):
     else:
         return lasagne.layers.LocalResponseNormalization2DLayer(network), ()
 
+def dropout_handler(network, flags, stacks, this_model):
+    p = flags['dropout']
+    if p == True:
+        p = 0.5
+    return lasagne.layers.DropoutLayer(network,p=p), ()
 
 def watch_handler(network, flags, stacks, this_model):
     get_layer = this_model['get_layer']
@@ -639,6 +644,7 @@ register_flag_handler('relu', relu_handler)
 register_flag_handler('nonlinearity', nonlinearity_handler, ('num_filters', ))
 register_flag_handler('noise', noise_handler)
 register_flag_handler('lrn', lrn_handler)
+register_flag_handler('dropout', dropout_handler)
 register_flag_handler('unargmax', unargmax_handler)
 register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)

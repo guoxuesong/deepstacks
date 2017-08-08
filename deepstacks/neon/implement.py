@@ -513,6 +513,13 @@ def lrn_handler(network, flags, stacks, this_model):
     kwargs['depth'] = lasagne_lru.get('n', 5)
     return sequential(network, LRN(**kwargs)), ()
 
+def dropout_handler(network, flags, stacks, this_model):
+    p = flags['dropout']
+    if p == True:
+        p = 0.5
+    if p>1.0:
+        p=1.0
+    return sequential(layers=(network, Dropout(1.0-p))), ()
 
 def watch_handler(network, flags, stacks, this_model):
     raise NotImplementedError
@@ -659,6 +666,7 @@ register_flag_handler('relu', relu_handler)
 register_flag_handler('nonlinearity', nonlinearity_handler, ('num_filters', ))
 register_flag_handler('noise', noise_handler)
 register_flag_handler('lrn', lrn_handler)
+register_flag_handler('dropout', dropout_handler)
 register_flag_handler('unargmax', unargmax_handler)
 register_flag_handler('argmax', argmax_handler)
 register_flag_handler('max', max_handler)
