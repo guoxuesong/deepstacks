@@ -5,6 +5,7 @@
 from macros import macros
 from macros import inception
 from macros import namespace
+from macros import ln
 from stacked import softmax
 
 
@@ -24,34 +25,45 @@ def googlenet(n):
         (namespace, 'inception_3a/', (
             (inception, (32,  64,  96,  128,  16,  32,)),
             )),
+        (ln,0,'inception_3a'),
         (namespace, 'inception_3b/', (
             (inception, (64,  128,  128,  192,  32,  96, )),
             )),
+        (ln,0,'inception_3b'),
         (0, 0, 3, 2, 0, 0, {'maxpool': True, 'layername': 'pool3/3x3_s2'}),
         (namespace, 'inception_4a/', (
             (inception, (64,   192,  96,   208,  16,  48,)),
             )),
+        (ln,0,'inception_4a'),
         (namespace, 'inception_4b/', (
             (inception, (64,   160,  112,  224,  24,  64,)),
             )),
+        (ln,0,'inception_4b'),
         (namespace, 'inception_4c/', (
             (inception, (64,   128,  128,  256,  24,  64,)),
             )),
+        (ln,0,'inception_4c'),
         (namespace, 'inception_4d/', (
             (inception, (64,   112,  144,  288,  32,  64,)),
             )),
+        (ln,0,'inception_4d'),
         (namespace, 'inception_4e/', (
             (inception, (128,  256,  160,  320,  32,  128, )),
             )),
+        (ln,0,'inception_4e'),
         (0, 0, 3, 2, 0, 0, {'maxpool': True, 'layername': 'pool4/3x3_s2'}),
         (namespace, 'inception_5a/', (
             (inception, (128,  256,  160,  320,  32,  128,)),
             )),
+        (ln,0,'inception_5a'),
         (namespace, 'inception_5b/', (
             (inception, (128,  384,  192,  384,  48,  128,)),
             )),
+        (ln,0,'inception_5b'),
         (0, 0, 7, 1, 0, 0, {
             'meanpool': True, 'pad': 0, 'layername': 'pool5/7x7_s1'}),
+        (0, 0, 0, 0, 0, 0, {
+            'dropout': 0.7, 'layername': 'pool5/dropout'}),
         (0, n, 0, 0, 0, 0, {
             'dense': True, 'linear': True, 'layername': 'loss3/classifier'}),
         (0, 0, 0, 0, 0, 0, {
