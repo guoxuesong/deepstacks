@@ -143,14 +143,16 @@ def myupdate():
     global src,norms,predictsloop,predictsloop2,predictsloop3
     if visualize_validation_set:
         iterate_fn=main.batch_iterator_test
+        db=main.args.train_db
     else:
         iterate_fn=main.batch_iterator_train
+        db=main.args.validation_db
     src=None
     norms=None
     predictsloop=[]
     predictsloop2=[]
     predictsloop3=[]
-    it=iterate_fn(num_batchsize)
+    it=iterate_fn(num_batchsize,db)
     for batch in it:
         #inputs, inputs2, actions, outputs, outputs2, rewards, targets, flags = batch
 
