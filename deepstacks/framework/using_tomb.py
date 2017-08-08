@@ -72,7 +72,7 @@ def build_action_sample(n,d,zero=False):
         value[0,:,:,:]=np.zeros_like(value[0,:,:,:])
     return value
 
-def iterate_minibatches(aa,stage,batchsize,iteratesize=400, shuffle=False, idx=False):
+def iterate_minibatches(aa,stage,batchsize,database='.',iteratesize=400, shuffle=False, idx=False):
     rangeframes=frames/90*10
     unitframes=frames/90*10
     i=0

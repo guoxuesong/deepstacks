@@ -7,7 +7,7 @@ from .main import register_batch_iterator
 from ..util.curry import curry
 from mnist import load_dataset
 
-def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
+def iterate_minibatches(inputs, targets, batchsize, database='.', shuffle=False):
     assert len(inputs) == len(targets)
     if shuffle:
         indices = np.arange(len(inputs))
