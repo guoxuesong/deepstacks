@@ -725,13 +725,39 @@ def random_shift(n,*all_inputs):
         all_outputs+=[outputs]
     return all_outputs+[actions2.reshape(len(inputs),2)]
 
+#def random_rotate(w,h,angle,scale,*all_inputs):
+#    cx=(np.random.rand(len(all_inputs[0])).astype(floatX))*w
+#    cy=(np.random.rand(len(all_inputs[0])).astype(floatX))*h
+#    actions=(np.random.rand(len(all_inputs[0]),4,1,1)).astype(floatX)
+#    actions2=np.zeros_like(actions)
+#    actions2[:,0]=(actions[:,0]*angle*2-angle).astype(floatX)
+#    actions2[:,1]=(actions[:,1]*scale*2-scale).astype(floatX)
+#    actions2[:,2,0,0]=cx
+#    actions2[:,3,0,0]=cy
+#    all_outputs=[]
+#    for inputs in all_inputs:
+#        outputs=np.zeros(inputs.shape,dtype=floatX)
+#        for i in range(len(inputs)):
+#            mat = cv2.getRotationMatrix2D((cx[i],cy[i]),actions2[i,0,0,0],1.0+actions2[i,1,0,0])
+#            tmp = cv2.warpAffine(inputs[i].transpose(1,2,0),mat,inputs[i].shape[1:]).transpose(2,0,1)
+#            #tmp=np.pad(inputs[i:i+1],((0,0),(0,0),(n,n),(n,n)),mode='constant',constant_values=0)
+#            #tmp=np.roll(tmp,actions2[i,0,0,0],2)
+#            #tmp=np.roll(tmp,actions2[i,1,0,0],3)
+#            outputs[i]=tmp
+#        all_outputs+=[outputs]
+#    return all_outputs+[actions2.reshape(len(inputs),4)]
+
 def random_rotate(w,h,angle,scale,*all_inputs):
+    if type(angle)==float:
+        angle=(-angle,angle)
+    if type(scale)==float:
+        scale=(1-scale,1+scale)
     cx=(np.random.rand(len(all_inputs[0])).astype(floatX))*w
     cy=(np.random.rand(len(all_inputs[0])).astype(floatX))*h
     actions=(np.random.rand(len(all_inputs[0]),4,1,1)).astype(floatX)
     actions2=np.zeros_like(actions)
-    actions2[:,0]=(actions[:,0]*angle*2-angle).astype(floatX)
-    actions2[:,1]=(actions[:,1]*scale*2-scale).astype(floatX)
+    actions2[:,0]=(actions[:,0]*(angle[1]-angle[0])+angle[0]).astype(floatX)
+    actions2[:,1]=(actions[:,1]*(scale[1]-scale[0])+scale[0]).astype(floatX)
     actions2[:,2,0,0]=cx
     actions2[:,3,0,0]=cy
     all_outputs=[]
@@ -1178,7 +1204,36 @@ def register_training_callbacks(bf,ef,ts,tf):
     on_training_started+=ts
     on_training_finished+=tf
 
-def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,momentum=0.9,num_params=[],num_layers=[],supervised=False,transform=True,grads_clip=1.0,accumulation=1):
+on_validation_started=[]
+on_validation_finished=[]
+def register_validation_callbacks(vs,vf):
+    global on_validation_started,on_validation_finished
+    on_validation_started+=vs
+    on_validation_finished+=vf
+
+data_shaker=None
+
+def register_data_shaker(f):
+    global data_shaker
+    data_shaker=f
+
+def run(args):
+    if args.train_db != '':
+        mode='training'
+    elif args.validation_db != '':
+        mode='validation'
+    elif args.inference_db!= '':
+        mode='inference'
+    else:
+        mode='training'
+
+    num_epochs=args.epoch
+    num_batchsize=args.batch_size
+    learning_rate=args.lr_base_rate
+    momentum=args.momentum
+    grads_clip=1.0
+    accumulation=1
+
 #    if batch_iterator_train is None:
 #        loader=load_200
 #        iterate_minibatches=iterate_minibatches_200
@@ -1187,8 +1242,8 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
 
     m={}
     dtypes={}
-    print batch_iterator_train
-    it=batch_iterator_train(num_batchsize)
+    #print batch_iterator_train
+    it=batch_iterator_train(num_batchsize,args.train_db)
     for X in it:
         for t in X:
             m[t]=X[t].shape
@@ -1300,19 +1355,19 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
     newlayers = conv_groups['newlayer'] if 'newlayer' in conv_groups else []
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
-        ],[],'hideconv-',ignore_mismatch=True,newlayers=newlayers)
+        ],[],args.snapshotPrefix,ignore_mismatch=True,newlayers=newlayers)
     print 'epoch_begin=',epoch_begin
     if 'deletelayer' in conv_groups:
         deletelayers = conv_groups['deletelayer']
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],'hideconv-',deletelayers=deletelayers)
+            ],[],args.snapshotPrefix,deletelayers=deletelayers)
         print 'layer(s) deleted.'
         exit(0)
     if has_loading_networks:
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],'hideconv2-')
+            ],[],args.snapshotPrefix)
         print 'save.'
         exit(0)
 
@@ -1457,7 +1512,7 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                 allow_input_downcast=True,
                 )
         print 'num_batchsize',num_batchsize
-        for batch in batch_iterator_inference(num_batchsize):
+        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
             out = inference_fn(*sorted_values(batch))
             if inference_handler is not None:
                 inference_handler(out[0])
@@ -1481,6 +1536,7 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
             h()
 
         min_loss=float('inf')
+        min_valloss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
             easyshared.update()
@@ -1494,7 +1550,7 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
             start_time = time.time()
             count = 0
             loopcount = 0
-            train_it=batch_iterator_train(num_batchsize)
+            train_it=batch_iterator_train(num_batchsize,args.train_db)
 
             train_len = 80
             err=None
@@ -1507,6 +1563,8 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                         stop=True
                         break
 
+                    if data_shaker is not None:
+                        batch = data_shaker(batch)
 
                     res=train_fn(*sorted_values(batch))
                     err=res[0]
@@ -1556,6 +1614,9 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     break
                 loopcount+=1
 
+            if (epoch+1)%args.validation_interval!=0:
+                continue
+
             # And a full pass over the validation data:
             val_err = 0
             val_errlist = None
@@ -1563,8 +1624,10 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
             start_time = time.time()
             count = 0
             loopcount = 0
-            val_it=batch_iterator_test(num_batchsize)
+            val_it=batch_iterator_test(num_batchsize,args.validation_db)
 
+            for h in on_validation_started:
+                h()
             val_len = 80
             err=None
             while True:
@@ -1622,15 +1685,21 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
                     break
                 loopcount+=1
 
+            for h in on_validation_finished:
+                h()
+
+            save_params(epoch+1,[
+                sorted_values(networks) for networks in all_networks
+                ],[],args.snapshotPrefix,deletelayers=[])
             if train_err / train_batches < min_loss:
                 min_loss = train_err / train_batches
+                print 'New minimum training loss',':',min_loss
+            if val_err / val_batches < min_valloss:
+                min_valloss = val_err / val_batches
+                print 'New minimum validation loss',':',min_valloss
                 save_params(epoch+1,[
                     sorted_values(networks) for networks in all_networks
-                    ],[],'hideconv-',deletelayers=[])
-            else:
-                save_params(epoch+1,[
-                    sorted_values(networks) for networks in all_networks
-                    ],[],'hideconv2-',deletelayers=[])
+                    ],[],args.snapshotPrefix+'epoch'+str(epoch+1)+'-',deletelayers=[])
             for h in on_epoch_finished:
                 h()
             while gc.collect() > 0:
@@ -1643,8 +1712,9 @@ def run(mode='training', num_epochs=500,num_batchsize=64,learning_rate=2e-4,mome
         for h in on_training_finished:
             h()
 
-#=============================
+args = None
 def main():
+    global args
 #    parser = argparse.ArgumentParser(description='Trains a neural network to handle 3d scene transforming on actions.')
 #    parser.add_argument('mode',metavar='MODE',help="'training/inference'")
 #    parser.add_argument('num_epochs',metavar='EPOCHS',type=int,help="number of training epochs to perform")
@@ -1654,7 +1724,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Deepstacks.')
 
-    parser.add_argument('mode',metavar='MODE',help="training/inference")
+    #parser.add_argument('mode',metavar='MODE',help="training/inference")
 
     def define_integer(key,default,desc):
         parser.add_argument('--'+key,type=int,default=default,help=desc)
@@ -1764,20 +1834,10 @@ def main():
 
     if os.path.exists('lr.txt'):
         os.remove('lr.txt')
-    if os.path.exists('zerogate.txt'):
-        os.remove('zerogate.txt')
     if os.path.exists('pltskip.txt'):
         os.remove('pltskip.txt')
 
-    kwargs = {}
-    kwargs['mode'] = args.mode
-    kwargs['num_epochs'] = args.epoch
-    kwargs['num_batchsize'] = args.batch_size
-    kwargs['learning_rate'] = args.lr_base_rate
-    kwargs['momentum'] = args.momentum
-    #kwargs['accumulation'] = args.accumulation
-
-    run(**kwargs)
+    run(args)
     quit_flag=True
     time.sleep(5)
 
