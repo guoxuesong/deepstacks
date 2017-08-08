@@ -1691,12 +1691,16 @@ def run(args):
             save_params(epoch+1,[
                 sorted_values(networks) for networks in all_networks
                 ],[],args.snapshotPrefix,deletelayers=[])
+            snapshot = False
             if train_err / train_batches < min_loss:
                 min_loss = train_err / train_batches
                 print 'New minimum training loss',':',min_loss
+                snapshot = True
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
                 print 'New minimum validation loss',':',min_valloss
+                snapshot = True
+            if snapshot:
                 save_params(epoch+1,[
                     sorted_values(networks) for networks in all_networks
                     ],[],args.snapshotPrefix+'epoch'+str(epoch+1)+'-',deletelayers=[])
