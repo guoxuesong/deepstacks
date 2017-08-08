@@ -243,5 +243,14 @@ def namespace(nameprefix, l):
         m = a[-1].copy()
         if 'layername' in m:
             m['layername'] = nameprefix+m['layername']
+        if 'push' in m:
+            keys = m['push']
+            if type(keys) == tuple:
+                keys = list(keys)
+            if type(keys) != list:
+                keys = [keys]
+            m['push']=keys
+            for k in keys:
+                m['push'] += [nameprefix+k]
         res += (a[:-1]+(m,),)
     return res
