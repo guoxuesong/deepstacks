@@ -1227,6 +1227,8 @@ def run(args):
     else:
         mode='training'
 
+    os.mkdir(args.save)
+
     num_epochs=args.epoch
     num_batchsize=args.batch_size
     learning_rate=args.lr_base_rate
@@ -1355,19 +1357,19 @@ def run(args):
     newlayers = conv_groups['newlayer'] if 'newlayer' in conv_groups else []
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
-        ],[],args.snapshotPrefix,ignore_mismatch=True,newlayers=newlayers)
+        ],[],os.path.join(args.save,args.snapshotPrefix),ignore_mismatch=True,newlayers=newlayers)
     print 'epoch_begin=',epoch_begin
     if 'deletelayer' in conv_groups:
         deletelayers = conv_groups['deletelayer']
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],args.snapshotPrefix,deletelayers=deletelayers)
+            ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=deletelayers)
         print 'layer(s) deleted.'
         exit(0)
     if has_loading_networks:
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],args.snapshotPrefix)
+            ],[],os.path.join(args.save,args.snapshotPrefix))
         print 'save.'
         exit(0)
 
@@ -1690,7 +1692,7 @@ def run(args):
 
             save_params(epoch+1,[
                 sorted_values(networks) for networks in all_networks
-                ],[],args.snapshotPrefix,deletelayers=[])
+                ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=[])
             snapshot = False
             if train_err / train_batches < min_loss:
                 min_loss = train_err / train_batches
@@ -1703,7 +1705,7 @@ def run(args):
             if snapshot:
                 save_params(epoch+1,[
                     sorted_values(networks) for networks in all_networks
-                    ],[],args.snapshotPrefix+'epoch'+str(epoch+1)+'-',deletelayers=[])
+                    ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
             for h in on_epoch_finished:
                 h()
             while gc.collect() > 0:
