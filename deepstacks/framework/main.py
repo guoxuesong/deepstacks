@@ -1234,7 +1234,7 @@ def run(args):
         mode='training'
     elif args.validation_db != '':
         mode='validation'
-    elif args.inference_db!= '':
+    elif args.inference_db != '':
         mode='inference'
     else:
         mode='training'
@@ -1255,7 +1255,15 @@ def run(args):
     m={}
     dtypes={}
     #print batch_iterator_train
-    it=batch_iterator_train(num_batchsize,args.train_db)
+    print args
+    print mode
+    if mode == 'training':
+        it=batch_iterator_train(num_batchsize,args.train_db)
+    elif mode == 'validation':
+        it=batch_iterator_test(num_batchsize,args.validation_db)
+    elif mode == 'inference':
+        it=batch_iterator_inference(num_batchsize,args.inference_db)
+
     for X in it:
         for t in X:
             m[t]=X[t].shape
@@ -1286,7 +1294,7 @@ def run(args):
         print k,m[k],dtypes[k]
         name=k
         input_var_type = T.TensorType(dtypes[k],
-                                      [s == 1 for s in m[k]])
+                [0,]+[s == 1 for s in m[k][1:]])
         var_name = ("%s.input" % name) if name is not None else "input"
         input_var = input_var_type(var_name)
         inputs[k]=lasagne.layers.InputLayer(name=name,input_var=input_var,shape=m[k])
@@ -1519,7 +1527,7 @@ def run(args):
             key='predict'
         else:
             key='output'
-        if inference_db is None:
+        if inference_fn is None:
             inference_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
                     map(lambda x:lasagne.layers.get_output(x,deterministic=True),stacks[key]),
