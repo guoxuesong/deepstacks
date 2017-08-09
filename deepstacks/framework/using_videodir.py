@@ -262,7 +262,7 @@ def iterate_minibatches_val(batchsize,database):
     return val_iter()
 
 def iterate_minibatches_inference(batchsize,database):
-    a=os.listdir(database)
-    return iterate_one(os.path.join(database,a[0]),0,256,256,batchsize,'float32','int64')
+    #a=os.listdir(database)
+    return iterate_one(os.path.join(database,database),0,256,256,batchsize,'float32','int64')
 
 register_batch_iterator(AsyncIterate(iterate_minibatches_train),AsyncIterate(iterate_minibatches_val),AsyncIterate(iterate_minibatches_inference))
