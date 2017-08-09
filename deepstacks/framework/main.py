@@ -34,7 +34,7 @@ from ..util import momentum
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import thread
 import cv2
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import argparse
 
 sys.setrecursionlimit(50000)
@@ -502,7 +502,7 @@ def register_model_handler(h):
     model_handlers+=[h]
 
 
-quit_flag=False
+#quit_flag=False
 
 #frames=270
 #rl_dummy=16
@@ -929,21 +929,21 @@ def make_nolearn_scores(losslist,tagslice):
 #    #cv2.waitKey(100)
 #    #sn+=1
 
-def plot_loss(net,pltskip):
-    skip=int(pltskip.get_value()+0.5)
-    train_loss = [row['train_loss'] for row in net.train_history_]
-    valid_loss = [row['valid_loss'] for row in net.train_history_]
-    for i in range(skip):
-        if i<len(train_loss):
-            train_loss[i]=None
-        if i<len(valid_loss):
-            valid_loss[i]=None
-    plt.plot(train_loss, label='train loss')
-    plt.plot(valid_loss, label='valid loss')
-    plt.xlabel('epoch')
-    plt.ylabel('loss')
-    plt.legend(loc='best')
-    return plt
+#def plot_loss(net,pltskip):
+#    skip=int(pltskip.get_value()+0.5)
+#    train_loss = [row['train_loss'] for row in net.train_history_]
+#    valid_loss = [row['valid_loss'] for row in net.train_history_]
+#    for i in range(skip):
+#        if i<len(train_loss):
+#            train_loss[i]=None
+#        if i<len(valid_loss):
+#            valid_loss[i]=None
+#    plt.plot(train_loss, label='train loss')
+#    plt.plot(valid_loss, label='valid loss')
+#    plt.xlabel('epoch')
+#    plt.ylabel('loss')
+#    plt.legend(loc='best')
+#    return plt
 
 
 #def myepochok():
@@ -1217,7 +1217,19 @@ def register_data_shaker(f):
     global data_shaker
     data_shaker=f
 
+train_fn = None
+val_fn = None
+inference_fn = None
+
+def inference(num_batchsize,inference_db):
+    for batch in batch_iterator_inference(num_batchsize,inference_db):
+        out = inference_fn(*sorted_values(batch))
+        if inference_handler is not None:
+            inference_handler(out[0])
+    return out[0]
+
 def run(args):
+    global train_fn,val_fn,inference_fn
     if args.train_db != '':
         mode='training'
     elif args.validation_db != '':
@@ -1226,8 +1238,6 @@ def run(args):
         mode='inference'
     else:
         mode='training'
-
-    os.mkdir(args.save)
 
     num_epochs=args.epoch
     num_batchsize=args.batch_size
@@ -1317,6 +1327,8 @@ def run(args):
         count += len(errs)
     for tag,errs in ordered_val_errors:
         val_errors += errs
+        valtagslice += [[tag,slice(valcount,valcount+len(errs))]]
+        valcount += len(errs)
     assert len(val_errors)==len(errors)
     i=0
     for tag,errs in ordered_watch_errors:
@@ -1392,7 +1404,7 @@ def run(args):
         for err in ee:
             if err!=None:
                 tmp = err.mean(dtype=floatX)
-                #losslist = losslist+[tmp]
+                vallosslist = vallosslist+[tmp]
                 valloss = valloss+tmp
     for ee in val_watch_errors:
         for err in ee:
@@ -1507,32 +1519,37 @@ def run(args):
             key='predict'
         else:
             key='output'
-        inference_fn = theano.function(
-                map(lambda x:x.input_var,sorted_values(inputs)), 
-                map(lambda x:lasagne.layers.get_output(x,deterministic=True),stacks[key]),
-                on_unused_input='warn', 
-                allow_input_downcast=True,
-                )
+        if inference_db is None:
+            inference_fn = theano.function(
+                    map(lambda x:x.input_var,sorted_values(inputs)), 
+                    map(lambda x:lasagne.layers.get_output(x,deterministic=True),stacks[key]),
+                    on_unused_input='warn', 
+                    allow_input_downcast=True,
+                    )
         print 'num_batchsize',num_batchsize
-        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
-            out = inference_fn(*sorted_values(batch))
-            if inference_handler is not None:
-                inference_handler(out[0])
+        inference(num_batchsize,args.inference_db)
+#        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
+#            out = inference_fn(*sorted_values(batch))
+#            if inference_handler is not None:
+#                inference_handler(out[0])
+#        return out[0]
     elif mode=='training':
         updates = lasagne.updates.adamax(loss, params, learning_rate=learning_rate)
-        train_fn = theano.function(
-                map(lambda x:x.input_var,sorted_values(inputs)), 
-                [loss]+losslist, 
-                updates=updates, 
-                on_unused_input='warn', 
-                allow_input_downcast=True,
-                )
-        val_fn = theano.function(
-                map(lambda x:x.input_var,sorted_values(inputs)), 
-                [valloss]+vallosslist, 
-                on_unused_input='warn', 
-                allow_input_downcast=True,
-                )
+        if train_fn is None:
+            train_fn = theano.function(
+                    map(lambda x:x.input_var,sorted_values(inputs)), 
+                    [loss]+losslist, 
+                    updates=updates, 
+                    on_unused_input='warn', 
+                    allow_input_downcast=True,
+                    )
+        if val_fn is None:
+            val_fn = theano.function(
+                    map(lambda x:x.input_var,sorted_values(inputs)), 
+                    [valloss]+vallosslist, 
+                    on_unused_input='warn', 
+                    allow_input_downcast=True,
+                    )
 
         for h in on_training_started:
             h()
@@ -1718,6 +1735,113 @@ def run(args):
         for h in on_training_finished:
             h()
 
+class ArgumentParser(argparse.ArgumentParser):
+    def __init__(self):
+        super(ArgumentParser,self).__init__(description='Deepstacks.')
+        parser=self
+
+        def define_integer(key,default,desc):
+            parser.add_argument('--'+key,type=int,default=default,help=desc)
+
+        def define_string(key,default,desc):
+            parser.add_argument('--'+key,type=str,default=default,help=desc)
+
+        def define_float(key,default,desc):
+            parser.add_argument('--'+key,type=float,default=float(default),help=desc)
+
+        def define_boolean(key,default,desc):
+            parser.add_argument('--'+key,type=bool,default=default,help=desc)
+
+        # Basic model parameters. #float, integer, boolean, string
+        define_integer('batch_size', 16, """Number of images to process in a batch""")
+        define_integer(
+            'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
+        define_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
+        define_string('inference_db', '', """Directory with inference file source""")
+        define_integer(
+            'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
+        define_string('labels_list', '', """Text file listing label definitions""")
+        define_string('mean', '', """Mean image file""")
+        define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
+        define_string('network', '', """File containing network (model)""")
+        define_string('networkDirectory', '', """Directory in which network exists""")
+        define_string('optimization', 'sgd', """Optimization method""")
+        define_string('save', 'results', """Save directory""")
+        define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
+        define_boolean('shuffle', False, """Shuffle records before training""")
+        define_float(
+            'snapshotInterval', 1.0,
+            """Specifies the training epochs to be completed before taking a snapshot""")
+        define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
+        define_string(
+            'subtractMean', 'none',
+            """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
+        define_string('train_db', '', """Directory with training file source""")
+        define_string(
+            'train_labels', '',
+            """Directory with an optional and seperate labels file source for training""")
+        define_string('validation_db', '', """Directory with validation file source""")
+        define_string(
+            'validation_labels', '',
+            """Directory with an optional and seperate labels file source for validation""")
+        define_string(
+            'visualizeModelPath', '', """Constructs the current model for visualization""")
+        define_boolean(
+            'visualize_inf', False, """Will output weights and activations for an inference job.""")
+        define_string(
+            'weights', '', """Filename for weights of a model to use for fine-tuning""")
+
+        # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
+        define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
+
+        # @TODO(tzaman); remove torch mentions below
+        define_float('lr_base_rate', '0.01', """Learning rate""")
+        define_string(
+            'lr_policy', 'fixed',
+            """Learning rate policy. (fixed, step, exp, inv, multistep, poly, sigmoid)""")
+        define_float(
+            'lr_gamma', -1,
+            """Required to calculate learning rate. Applies to: (step, exp, inv, multistep, sigmoid)""")
+        define_float(
+            'lr_power', float('Inf'),
+            """Required to calculate learning rate. Applies to: (inv, poly)""")
+        define_string(
+            'lr_stepvalues', '',
+            """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
+            For the 'multistep' lr_policy you can input multiple values seperated by commas""")
+
+    #    # Tensorflow-unique arguments for DIGITS
+    #    define_string(
+    #        'save_vars', 'all',
+    #        """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
+    #    define_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
+    #    define_boolean(
+    #        'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
+    #    define_boolean('log_device_placement', False, """Whether to log device placement.""")
+    #    define_integer(
+    #        'log_runtime_stats_per_step', 0,
+    #        """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+
+    #    # Augmentation
+    #    define_string(
+    #        'augFlip', 'none',
+    #        """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
+    #    define_float(
+    #        'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
+    #    define_float(
+    #        'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
+    #         as pre-processing  augmentation""")
+    #    define_boolean(
+    #        'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
+    #        dividing by its own standard deviation.""")
+    #    define_float(
+    #        'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
+    #    define_float(
+    #        'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
+    #    define_float(
+    #        'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
+
+
 args = None
 def main():
     global args
@@ -1728,115 +1852,9 @@ def main():
 #    parser.add_argument('learning_rate',metavar='LEARNING_RATE',type=float,help="learning rate")
 #    parser.add_argument('accumulation',metavar='ACCUMULATION',type=int,help="batch accumulation")
 
-    parser = argparse.ArgumentParser(description='Deepstacks.')
-
-    #parser.add_argument('mode',metavar='MODE',help="training/inference")
-
-    def define_integer(key,default,desc):
-        parser.add_argument('--'+key,type=int,default=default,help=desc)
-
-    def define_string(key,default,desc):
-        parser.add_argument('--'+key,type=str,default=default,help=desc)
-
-    def define_float(key,default,desc):
-        parser.add_argument('--'+key,type=float,default=float(default),help=desc)
-
-    def define_boolean(key,default,desc):
-        parser.add_argument('--'+key,type=bool,default=default,help=desc)
-
-    # Basic model parameters. #float, integer, boolean, string
-    define_integer('batch_size', 16, """Number of images to process in a batch""")
-    define_integer(
-        'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
-    define_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
-    define_string('inference_db', '', """Directory with inference file source""")
-    define_integer(
-        'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
-    define_string('labels_list', '', """Text file listing label definitions""")
-    define_string('mean', '', """Mean image file""")
-    define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
-    define_string('network', '', """File containing network (model)""")
-    define_string('networkDirectory', '', """Directory in which network exists""")
-    define_string('optimization', 'sgd', """Optimization method""")
-    define_string('save', 'results', """Save directory""")
-    define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
-    define_boolean('shuffle', False, """Shuffle records before training""")
-    define_float(
-        'snapshotInterval', 1.0,
-        """Specifies the training epochs to be completed before taking a snapshot""")
-    define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
-    define_string(
-        'subtractMean', 'none',
-        """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
-    define_string('train_db', '', """Directory with training file source""")
-    define_string(
-        'train_labels', '',
-        """Directory with an optional and seperate labels file source for training""")
-    define_string('validation_db', '', """Directory with validation file source""")
-    define_string(
-        'validation_labels', '',
-        """Directory with an optional and seperate labels file source for validation""")
-    define_string(
-        'visualizeModelPath', '', """Constructs the current model for visualization""")
-    define_boolean(
-        'visualize_inf', False, """Will output weights and activations for an inference job.""")
-    define_string(
-        'weights', '', """Filename for weights of a model to use for fine-tuning""")
-
-    # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
-    define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
-
-    # @TODO(tzaman); remove torch mentions below
-    define_float('lr_base_rate', '0.01', """Learning rate""")
-    define_string(
-        'lr_policy', 'fixed',
-        """Learning rate policy. (fixed, step, exp, inv, multistep, poly, sigmoid)""")
-    define_float(
-        'lr_gamma', -1,
-        """Required to calculate learning rate. Applies to: (step, exp, inv, multistep, sigmoid)""")
-    define_float(
-        'lr_power', float('Inf'),
-        """Required to calculate learning rate. Applies to: (inv, poly)""")
-    define_string(
-        'lr_stepvalues', '',
-        """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
-        For the 'multistep' lr_policy you can input multiple values seperated by commas""")
-
-#    # Tensorflow-unique arguments for DIGITS
-#    define_string(
-#        'save_vars', 'all',
-#        """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
-#    define_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
-#    define_boolean(
-#        'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
-#    define_boolean('log_device_placement', False, """Whether to log device placement.""")
-#    define_integer(
-#        'log_runtime_stats_per_step', 0,
-#        """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
-
-    # Augmentation
-    define_string(
-        'augFlip', 'none',
-        """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
-    define_float(
-        'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
-    define_float(
-        'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
-         as pre-processing  augmentation""")
-    define_boolean(
-        'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
-        dividing by its own standard deviation.""")
-    define_float(
-        'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
-    define_float(
-        'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
-    define_float(
-        'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
-
+    parser = ArgumentParser()
 
     args = parser.parse_args()
-
-    print(args)
 
     if os.path.exists('lr.txt'):
         os.remove('lr.txt')
@@ -1844,6 +1862,6 @@ def main():
         os.remove('pltskip.txt')
 
     run(args)
-    quit_flag=True
-    time.sleep(5)
+    #quit_flag=True
+    #time.sleep(5)
 
