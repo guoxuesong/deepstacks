@@ -1572,7 +1572,7 @@ def run(args):
                     )
 
         for h in on_training_started:
-            h()
+            h(locals())
 
         min_loss=float('inf')
         min_valloss=float('inf')
@@ -1619,7 +1619,7 @@ def run(args):
                     count = count+1
 
                     for h in on_batch_finished:
-                        h()
+                        h(locals())
 
                     sys.stdout.write(".")
 
@@ -1666,7 +1666,7 @@ def run(args):
             val_it=batch_iterator_test(num_batchsize,args.validation_db)
 
             for h in on_validation_started:
-                h()
+                h(locals())
             val_len = 80
             err=None
             while True:
@@ -1725,7 +1725,7 @@ def run(args):
                 loopcount+=1
 
             for h in on_validation_finished:
-                h()
+                h(locals())
 
             save_params(epoch+1,[
                 sorted_values(networks) for networks in all_networks
@@ -1744,7 +1744,7 @@ def run(args):
                     sorted_values(networks) for networks in all_networks
                     ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
             for h in on_epoch_finished:
-                h()
+                h(locals())
             while gc.collect() > 0:
                 pass
             #print 'gc'
@@ -1753,7 +1753,7 @@ def run(args):
             if break_flag or 0xFF & cv2.waitKey(100) == 27:
                 break
         for h in on_training_finished:
-            h()
+            h(locals())
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):

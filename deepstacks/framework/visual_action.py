@@ -67,7 +67,7 @@ bottom=None
 right=None
 
 sn=0
-def mybatchok():
+def mybatchok(m):
     global sn
     show(src,norms,predictsloop,predictsloop2,predictsloop3,sn,bottom=bottom,right=right)
     cv2.waitKey(100)
@@ -139,7 +139,7 @@ def set_visualize_validation_set(v):
     global visualize_validation_set
     visualize_validation_set=v
 
-def myupdate():
+def myupdate(m):
     global src,norms,predictsloop,predictsloop2,predictsloop3
     if visualize_validation_set:
         iterate_fn=main.batch_iterator_test
