@@ -16,6 +16,7 @@ import Queue
 from .main import register_batch_iterator
 from ..util.curry import curry
 from ..util.async_iterate import AsyncIterate
+from ..util.localshuffler import LocalShuffler
 
 queue=Queue.Queue(256)
 
@@ -40,6 +41,55 @@ def filter_notbusy(vs):
     return vres,cres
 
 #semaphore = threading.Semaphore(3)
+
+class VideoCaptureReader(object):
+    def __init__(self,vurl):
+        print vurl
+        self.vurl=vurl
+        self.vcap=cv2.VideoCapture(vurl)
+        self.fps=self.vcap.get(cv.CV_CAP_PROP_FPS)
+        self.begin=time.time()
+        self.last=self.begin
+        self.image=None
+        self.ctime=time.time()
+        self.beginpos=0
+        self.endpos=3600*30*2
+        ret,image=self.vcap.read()
+        if ret:
+            self.image=image.copy()
+            self.localshuffler=LocalShuffler(4,self.image.shape)
+            for i in range(4):
+                ret,image=self.vcap.read()
+                assert ret
+                self.localshuffler.feed(image,0)
+
+            thread.start_new_thread(self.backend,())
+            print 'ok'
+        else:
+            print 'skip'
+    @property
+    def busy(self):
+        return self.image is None
+    def shuffle(self):
+        pass
+    def backend(self):
+        while True:
+            ret,image=self.vcap.read()
+            if ret:
+                self.image=image.copy()
+            #else:
+            #    self.image=None
+            time.sleep(1.0/self.fps)
+    def read(self):
+        if self.image is None:
+            print >>sys.stderr,'warning: vcap fail, try reload'
+            if time.time()-self.ctime>600:
+                self.ctime=time.time()
+                self.vcap=cv2.VideoCapture(self.vurl)
+            return False,None
+        image,ig=self.localshuffler.feed(self.image,0)
+        self.image=None
+        return True,image
 
 class SliceLooper(object):
     def __init__(self,filename,beginpos,endpos):
@@ -140,33 +190,41 @@ class iterate(object):
             eff_num_slice = max(num_slice,(batchsize*2)//len(a))
             # print a
             for t in a:
-                v = cv2.VideoCapture(os.path.join(p,t))
-
-                r = t.split('.')[-2]
-                if r[0]=='[' and r[-1]==']':
-                    begin_time,end_time=r[1:-1].split('-')
-                    begin_time=float(begin_time)
-                    v.set(cv.CV_CAP_PROP_POS_MSEC,int(begin_time*1000))
-                    begin=v.get(cv.CV_CAP_PROP_POS_FRAMES)
-                    if end_time != '':
-                        end_time=float(end_time)
-                        v.set(cv.CV_CAP_PROP_POS_MSEC,int(end_time*1000))
-                        end=v.get(cv.CV_CAP_PROP_POS_FRAMES)
-                    else:
-                        end = v.get(cv.CV_CAP_PROP_FRAME_COUNT)
-                    n=end-begin
-                else:
-                    begin=0
-                    n = v.get(cv.CV_CAP_PROP_FRAME_COUNT)
-                    end=n
-                slices = []
-                for i in range(0,int(n)-int(n)//eff_num_slice+1,int(n)//eff_num_slice):
-                    slices+=[(begin+i,begin+min(n,i+int(n)//eff_num_slice))]
-                for beginpos,endpos in slices:
-                    # print beginpos,'/',n,t
-                    v = SliceLooper(os.path.join(p,t),beginpos,endpos)
+                if t.endswith('.url'):
+                    url=open(os.path.join(p,t)).read().strip()
+                    v = VideoCaptureReader(url)
                     m[y]+=[v]
+                    beginpos=v.beginpos
+                    endpos=v.endpos
                     count[y]+=[count[y][-1]+(endpos-beginpos)]
+                else:
+                    v = cv2.VideoCapture(os.path.join(p,t))
+
+                    r = t.split('.')[-2]
+                    if r[0]=='[' and r[-1]==']':
+                        begin_time,end_time=r[1:-1].split('-')
+                        begin_time=float(begin_time)
+                        v.set(cv.CV_CAP_PROP_POS_MSEC,int(begin_time*1000))
+                        begin=v.get(cv.CV_CAP_PROP_POS_FRAMES)
+                        if end_time != '':
+                            end_time=float(end_time)
+                            v.set(cv.CV_CAP_PROP_POS_MSEC,int(end_time*1000))
+                            end=v.get(cv.CV_CAP_PROP_POS_FRAMES)
+                        else:
+                            end = v.get(cv.CV_CAP_PROP_FRAME_COUNT)
+                        n=end-begin
+                    else:
+                        begin=0
+                        n = v.get(cv.CV_CAP_PROP_FRAME_COUNT)
+                        end=n
+                    slices = []
+                    for i in range(0,int(n)-int(n)//eff_num_slice+1,int(n)//eff_num_slice):
+                        slices+=[(begin+i,begin+min(n,i+int(n)//eff_num_slice))]
+                    for beginpos,endpos in slices:
+                        # print beginpos,'/',n,t
+                        v = SliceLooper(os.path.join(p,t),beginpos,endpos)
+                        m[y]+=[v]
+                        count[y]+=[count[y][-1]+(endpos-beginpos)]
             count[y]=count[y][1:]
         self.batches=batches
         self.X = np.zeros((batchsize,3,width,height),dtype=xdtype)
@@ -209,7 +267,7 @@ class iterate(object):
                         if self.shuffle_rate>0.1:
                             self.shuffle_rate*=0.9
                     count=0
-                    while len(vs)!=len(self.m[y]):
+                    while len(filter(lambda x:isinstance(x,SliceLooper),vs))!=len(filter(lambda x:isinstance(x,SliceLooper),self.m[y])):
                         vs,cs = filter_notbusy(self.m[y])
                         count+=1
                         if count>=1000:
