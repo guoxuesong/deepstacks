@@ -1436,8 +1436,11 @@ def run(args):
 
     print 'count_params:',sum([lasagne.layers.count_params(networks.values(),trainable=True) for networks in all_networks],0)
 
+    loss0 = loss
     if loss_handler is not None:
         loss = loss_handler(loss,sum([networks.values() for networks in all_networks],[]))
+
+    extra_loss = loss - loss0
 
     # l2_penalty 的权重选择：先计算平均，然后在理想的现象数上平摊，因为每个
     # 现象提供 64*64*3 个方程，所以我们只需要 700 多个“理想的”现象，就可以
@@ -1559,7 +1562,7 @@ def run(args):
         if train_fn is None:
             train_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
-                    [loss]+losslist, 
+                    [loss,extra_loss]+losslist, 
                     updates=updates, 
                     on_unused_input='warn', 
                     allow_input_downcast=True,
@@ -1579,16 +1582,18 @@ def run(args):
         min_valloss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
-            easyshared.update()
 
             if lrpolicy is not None:
-                lr.set_value(lrpolicy.get_learning_rate(epoch-epoch_begin)
+                lr.set_value(lrpolicy.get_learning_rate(epoch-epoch_begin))
+
+            easyshared.update()
 
             break_flag = False
 
 
             # In each epoch, we do a full pass over the training data:
             train_err = 0
+            train_penalty = 0
             train_errlist = None
             train_batches = 0
             start_time = time.time()
@@ -1612,8 +1617,10 @@ def run(args):
 
                     res=train_fn(*sorted_values(batch))
                     err=res[0]
-                    errlist=res[1:]
+                    penalty=res[1]
+                    errlist=res[2:]
                     train_err += err
+                    train_penalty += penalty
                     if train_errlist is None:
                         train_errlist=errlist
                     else:
@@ -1650,8 +1657,10 @@ def run(args):
                     print "Training {} of {} took {:.3f}s".format(
                         epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
                 avg_err = train_err / train_batches
+                avg_penalty = train_penalty / train_batches
                 #print "  training loss:\t\t{:.6f}".format(avg_err)
                 print ' ','training loss',':',avg_err
+                print ' ','training penalty',':',avg_penalty
                 tmp = map(lambda x:x/train_batches,train_errlist)
                 for tag,sli in tagslice:
                     if len(tmp[sli])>0:
