@@ -5,7 +5,7 @@
 from macros import macros
 from macros import inception
 from macros import namespace
-from macros import ln
+from macros import ln,switch
 from stacked import softmax
 
 from framework.main import newlayers,layers
