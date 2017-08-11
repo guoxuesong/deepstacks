@@ -30,7 +30,6 @@ import theano.tensor as T
 from ..util import easyshared
 
 import lasagne
-from ..util import momentum
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import thread
 import cv2
@@ -44,6 +43,7 @@ sys.setrecursionlimit(50000)
 
 floatX=theano.config.floatX
 
+from ..util.momentum import adamax
 from ..util.curry import *
 
 from ..util.multinpy import readnpy,writenpy
@@ -1228,6 +1228,12 @@ def inference(num_batchsize,inference_db):
             inference_handler(out[0])
     return out[0]
 
+loss_handler=None
+
+def register_loss_handler(h):
+    global loss_handler
+    loss_handler=h
+
 def run(args):
     global train_fn,val_fn,inference_fn
     if args.train_db != '':
@@ -1284,6 +1290,8 @@ def run(args):
     lr=easyshared.add('lr.txt',learning_rate)
     sigma_base=easyshared.add('sigma.txt',1.0)
     pltskip=easyshared.add('pltskip.txt',0.0)
+    decay=easyshared.add('decay.txt',1e-8)
+
 
     easyshared.update()
     
@@ -1294,7 +1302,7 @@ def run(args):
         print k,m[k],dtypes[k]
         name=k
         input_var_type = T.TensorType(dtypes[k],
-                [0,]+[s == 1 for s in m[k][1:]])
+                [False,]+[s == 1 for s in m[k][1:]])
         var_name = ("%s.input" % name) if name is not None else "input"
         input_var = input_var_type(var_name)
         inputs[k]=lasagne.layers.InputLayer(name=name,input_var=input_var,shape=m[k])
@@ -1427,6 +1435,9 @@ def run(args):
 
     print 'count_params:',sum([lasagne.layers.count_params(networks.values(),trainable=True) for networks in all_networks],0)
 
+    if loss_handler is not None:
+        loss = loss_handler(loss,sum([networks.values() for networks in all_networks],[]))
+
     # l2_penalty 的权重选择：先计算平均，然后在理想的现象数上平摊，因为每个
     # 现象提供 64*64*3 个方程，所以我们只需要 700 多个“理想的”现象，就可以
     # 确定所有的参数，就在这 700 多个现象上平摊
@@ -1543,6 +1554,7 @@ def run(args):
 #        return out[0]
     elif mode=='training':
         updates = lasagne.updates.adamax(loss, params, learning_rate=learning_rate)
+        #updates = adamax(loss, params, learning_rate=learning_rate, decay=1-(decay*num_batchsize))
         if train_fn is None:
             train_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
@@ -1721,11 +1733,11 @@ def run(args):
             snapshot = False
             if train_err / train_batches < min_loss:
                 min_loss = train_err / train_batches
-                print 'New minimum training loss',':',min_loss
+                print 'New low training loss',':',min_loss
                 snapshot = True
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
-                print 'New minimum validation loss',':',min_valloss
+                print 'New low validation loss',':',min_valloss
                 snapshot = True
             if snapshot:
                 save_params(epoch+1,[
@@ -1863,11 +1875,6 @@ def main():
     parser = ArgumentParser()
 
     args = parser.parse_args()
-
-    if os.path.exists('lr.txt'):
-        os.remove('lr.txt')
-    if os.path.exists('pltskip.txt'):
-        os.remove('pltskip.txt')
 
     run(args)
     #quit_flag=True
