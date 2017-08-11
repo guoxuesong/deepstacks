@@ -1234,6 +1234,7 @@ def register_loss_handler(h):
     global loss_handler
     loss_handler=h
 
+lrpolicy = None
 def run(args):
     global train_fn,val_fn,inference_fn
     if args.train_db != '':
@@ -1553,8 +1554,8 @@ def run(args):
 #                inference_handler(out[0])
 #        return out[0]
     elif mode=='training':
-        updates = lasagne.updates.adamax(loss, params, learning_rate=learning_rate)
-        #updates = adamax(loss, params, learning_rate=learning_rate, decay=1-(decay*num_batchsize))
+        updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
+        #updates = adamax(loss, params, learning_rate=lr, decay=1-(decay*num_batchsize))
         if train_fn is None:
             train_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
@@ -1579,6 +1580,10 @@ def run(args):
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
             easyshared.update()
+
+            if lrpolicy is not None:
+                lr.set_value(lrpolicy.get_learning_rate(epoch-epoch_begin)
+
             break_flag = False
 
 
@@ -1628,6 +1633,14 @@ def run(args):
                         break_flag = True
                         break
 
+                if lrpolicy is None:
+                    total_training_steps = num_epochs*train_batches
+                    lrpolicy = lr_policy.LRPolicy(args.lr_policy,
+                                                  args.lr_base_rate,
+                                                  args.lr_gamma,
+                                                  args.lr_power,
+                                                  total_training_steps,
+                                                  args.lr_stepvalues)
                 print '' 
                 # Then we print the results for this epoch:
                 if not stop:
