@@ -28,6 +28,7 @@ import theano
 import theano.tensor as T
 
 from ..util import easyshared
+from ..util import lr_policy 
 
 import lasagne
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
@@ -764,7 +765,7 @@ def random_rotate(w,h,angle,scale,*all_inputs):
     for inputs in all_inputs:
         outputs=np.zeros(inputs.shape,dtype=floatX)
         for i in range(len(inputs)):
-            mat = cv2.getRotationMatrix2D((cx[i],cy[i]),actions2[i,0,0,0],1.0+actions2[i,1,0,0])
+            mat = cv2.getRotationMatrix2D((cx[i],cy[i]),actions2[i,0,0,0],actions2[i,1,0,0])
             tmp = cv2.warpAffine(inputs[i].transpose(1,2,0),mat,inputs[i].shape[1:]).transpose(2,0,1)
             #tmp=np.pad(inputs[i:i+1],((0,0),(0,0),(n,n),(n,n)),mode='constant',constant_values=0)
             #tmp=np.roll(tmp,actions2[i,0,0,0],2)
@@ -1236,6 +1237,7 @@ def register_loss_handler(h):
 
 lrpolicy = None
 def run(args):
+    global lrpolicy
     global train_fn,val_fn,inference_fn
     if args.train_db != '':
         mode='training'
@@ -1557,8 +1559,8 @@ def run(args):
 #                inference_handler(out[0])
 #        return out[0]
     elif mode=='training':
-        updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
-        #updates = adamax(loss, params, learning_rate=lr, decay=1-(decay*num_batchsize))
+        #updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
+        updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
         if train_fn is None:
             train_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
