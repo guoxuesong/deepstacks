@@ -69,6 +69,10 @@ class VideoCaptureReader(object):
             print 'skip'
     @property
     def busy(self):
+        if time.time()-self.ctime>600:
+            print >>sys.stderr,'warning: vcap fail, try reload'
+            self.ctime=time.time()
+            self.vcap=cv2.VideoCapture(self.vurl)
         return self.image is None
     def shuffle(self):
         pass
@@ -82,10 +86,6 @@ class VideoCaptureReader(object):
             time.sleep(1.0/self.fps)
     def read(self):
         if self.image is None:
-            print >>sys.stderr,'warning: vcap fail, try reload'
-            if time.time()-self.ctime>600:
-                self.ctime=time.time()
-                self.vcap=cv2.VideoCapture(self.vurl)
             return False,None
         image,ig=self.localshuffler.feed(self.image,0)
         self.image=None
