@@ -44,7 +44,7 @@ sys.setrecursionlimit(50000)
 
 floatX=theano.config.floatX
 
-from ..utils.momentum import adamax
+from ..utils.momentum import sgd,momentum,adamax
 from ..utils.curry import *
 
 from ..utils.multinpy import readnpy,writenpy
@@ -1586,8 +1586,22 @@ def run(args):
 #                inference_handler(out[0])
 #        return out[0]
     elif mode=='training' or mode=='validation':
-        #updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
-        updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
+        if args.optimization=='sgd'
+            updates = sgd(loss, params, learning_rate=lr, grads_clip=grads_clip)
+        elif args.optimization=='momentum'
+            updates = momentum(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
+        elif args.optimization=='nesterov_momentum'
+            updates = asagne.updates.nesterov_momentum(loss, params, learning_rate=lr)
+        elif args.optimization=='adagrad'
+            updates = asagne.updates.adagrad(loss, params, learning_rate=lr)
+        elif args.optimization=='rmsprop'
+            updates = asagne.updates.rmsprop(loss, params, learning_rate=lr)
+        elif args.optimization=='adadelta'
+            updates = asagne.updates.adadelta(loss, params, learning_rate=lr)
+        elif args.optimization=='adam'
+            updates = lasagne.updates.adam(loss, params, learning_rate=lr)
+        elif args.optimization=='adamax'
+            updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
         if mode=='training':
             if train_fn is None:
                 train_fn = theano.function(
@@ -1843,7 +1857,7 @@ class ArgumentParser(argparse.ArgumentParser):
         define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
         #define_string('network', '', """File containing network (model)""")
         #define_string('networkDirectory', '', """Directory in which network exists""")
-        #define_string('optimization', 'sgd', """Optimization method""")
+        define_string('optimization', 'sgd', """Optimization method""")
         define_string('save', 'results', """Save directory""")
         #define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
         #define_boolean('shuffle', False, """Shuffle records before training""")
