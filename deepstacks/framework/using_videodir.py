@@ -298,6 +298,13 @@ class iterate(object):
             #X/=256
             yield {'image':(X/256.0).astype(self.xdtype),'target':Y}
 
+train_epochs=400
+val_epochs=80
+def set_epochs(te,ve):
+    global train_epochs,val_epochs
+    train_epochs=te
+    val_epochs=ve
+
 train_iter=None
 def iterate_minibatches_train(batchsize,database):
     global train_iter
@@ -306,7 +313,7 @@ def iterate_minibatches_train(batchsize,database):
         paths=map(lambda x:os.path.join(database,x),a)
         ys=map(lambda x:int(x),a)
         print paths,ys
-        train_iter=iterate(paths,ys,256,256,batchsize,400,theano.config.floatX,'int64',1)
+        train_iter=iterate(paths,ys,256,256,batchsize,train_epochs,theano.config.floatX,'int64',1)
     return train_iter()
 
 val_iter=None
@@ -316,7 +323,7 @@ def iterate_minibatches_val(batchsize,database):
         a=os.listdir(database)
         paths=map(lambda x:os.path.join(database,x),a)
         ys=map(lambda x:int(x),a)
-        val_iter=iterate(paths,ys,256,256,batchsize,40,theano.config.floatX,'int64',1,fixed_shuffle_rate=True)
+        val_iter=iterate(paths,ys,256,256,batchsize,val_epochs,theano.config.floatX,'int64',1,fixed_shuffle_rate=True)
     return val_iter()
 
 def iterate_minibatches_inference(batchsize,database):
