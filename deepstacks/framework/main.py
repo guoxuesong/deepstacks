@@ -1785,18 +1785,15 @@ def run(args):
             save_params(epoch+1,[
                 sorted_values(networks) for networks in all_networks
                 ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=[])
-            snapshot = False
             if mode=='training':
                 if train_err / train_batches < min_loss:
                     min_loss = train_err / train_batches
                     print 'New low training loss',':',min_loss
-                    snapshot = True
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
                 print 'New low validation loss',':',min_valloss
-                snapshot = True
             if mode=='training':
-                if snapshot:
+                if (epoch+1)%max(1,int(args.snapshotInterval))==0:
                     save_params(epoch+1,[
                         sorted_values(networks) for networks in all_networks
                         ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
@@ -1850,9 +1847,9 @@ class ArgumentParser(argparse.ArgumentParser):
         define_string('save', 'results', """Save directory""")
         #define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
         #define_boolean('shuffle', False, """Shuffle records before training""")
-        #define_float(
-        #    'snapshotInterval', 1.0,
-        #    """Specifies the training epochs to be completed before taking a snapshot""")
+        define_float(
+            'snapshotInterval', 1.0,
+            """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
         define_string(
             'subtractMean', 'none',
