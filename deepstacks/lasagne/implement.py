@@ -12,7 +12,7 @@ from ..stacked import register_concat_handler, register_inputs_handler
 from ..stacked import register_flag_handler, register_flag_handler_closer
 from ..stacked import register_layer_handler, register_nonlinearities
 from ..stacked import *
-from ..util.curry import curry
+from ..utils.curry import curry
 from .argmax import goroshin_max, goroshin_argmax, goroshin_unargmax
 
 

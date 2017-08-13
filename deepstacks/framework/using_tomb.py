@@ -6,9 +6,9 @@ import os
 import random
 import numpy as np
 from .main import register_batch_iterator
-from ..util.curry import curry
-from ..util.multinpy import readnpy,writenpy
-from ..util.async_iterate import AsyncIterate
+from ..utils.curry import curry
+from ..utils.multinpy import readnpy,writenpy
+from ..utils.async_iterate import AsyncIterate
 
 import theano
 floatX=theano.config.floatX

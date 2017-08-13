@@ -14,9 +14,9 @@ import thread
 import threading
 import Queue
 from .main import register_batch_iterator
-from ..util.curry import curry
-from ..util.async_iterate import AsyncIterate
-from ..util.localshuffler import LocalShuffler
+from ..utils.curry import curry
+from ..utils.async_iterate import AsyncIterate
+from ..utils.localshuffler import LocalShuffler
 
 queue=Queue.Queue(256)
 

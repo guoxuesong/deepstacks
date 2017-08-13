@@ -5,7 +5,7 @@
 import theano
 import lasagne
 from join import join_layer as JoinLayer
-from ..util.curry import curry
+from ..utils.curry import curry
 
 floatX = theano.config.floatX
 

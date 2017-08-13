@@ -9,11 +9,11 @@ import lmdb
 import caffe
 import theano
 from .main import register_batch_iterator
-from ..util.curry import curry
-from ..util.async_iterate import AsyncIterate
+from ..utils.curry import curry
+from ..utils.async_iterate import AsyncIterate
 from StringIO import StringIO
 import PIL.Image
-from ..util.localshuffler import LocalShuffler
+from ..utils.localshuffler import LocalShuffler
 
 def iterate_minibatches(batchsize, database, shufflesize=1, use_caffe=True):
 

@@ -9,7 +9,7 @@ import cv2
 import main
 #from .main import batch_iterator_train,batch_iterator_test
 from .main import register_training_callbacks, register_model_handler
-from ..util.curry import curry
+from ..utils.curry import curry
 
 floatX=theano.config.floatX
 

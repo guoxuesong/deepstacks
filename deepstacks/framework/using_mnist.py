@@ -4,7 +4,7 @@
 
 import numpy as np
 from .main import register_batch_iterator
-from ..util.curry import curry
+from ..utils.curry import curry
 from mnist import load_dataset
 
 def iterate_minibatches(inputs, targets, batchsize, database='.', shuffle=False):

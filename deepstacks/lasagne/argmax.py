@@ -1,7 +1,7 @@
 import theano
 import theano.tensor as T
 import numpy as np
-from..util. floatXconst import floatXconst
+from ..utils.floatXconst import floatXconst
 
 floatX = theano.config.floatX
 

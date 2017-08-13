@@ -10,7 +10,7 @@ from deepstacks.macros import *
 
 #using_nolearn=False
 
-from ..util.floatXconst import * 
+from ..utils.floatXconst import * 
 from ..lasagne.utils import ordered_errors as get_ordered_errors
 
 import sys
@@ -27,8 +27,8 @@ print 'start theano ...'
 import theano
 import theano.tensor as T
 
-from ..util import easyshared
-from ..util import lr_policy 
+from ..utils import easyshared
+from ..utils import lr_policy 
 
 import lasagne
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
@@ -44,10 +44,10 @@ sys.setrecursionlimit(50000)
 
 floatX=theano.config.floatX
 
-from ..util.momentum import adamax
-from ..util.curry import *
+from ..utils.momentum import adamax
+from ..utils.curry import *
 
-from ..util.multinpy import readnpy,writenpy
+from ..utils.multinpy import readnpy,writenpy
 
 def sorted_values(m):#{{{
     if isinstance(m,OrderedDict):
