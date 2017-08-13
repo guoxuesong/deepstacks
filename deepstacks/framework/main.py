@@ -1235,6 +1235,32 @@ def register_loss_handler(h):
     global loss_handler
     loss_handler=h
 
+try:
+    import caffe
+    from caffe.proto import caffe_pb2
+    def load_mean_file(mean_file):
+        with open(mean_file, 'rb') as infile:
+            blob = caffe_pb2.BlobProto()
+            blob.MergeFromString(infile.read())
+            if blob.HasField('shape'):
+                blob_dims = blob.shape
+                assert len(blob_dims) == 4, 'Shape should have 4 dimensions - shape is "%s"' % blob.shape
+            elif blob.HasField('num') and blob.HasField('channels') and \
+                    blob.HasField('height') and blob.HasField('width'):
+                blob_dims = (blob.num, blob.channels, blob.height, blob.width)
+            else:
+                raise ValueError('blob does not provide shape or 4d dimensions')
+            #pixel = np.reshape(blob.data, blob_dims[1:]).mean(1).mean(1)
+            #print pixel.shape
+            #t.set_mean('data', pixel)
+            mean=np.reshape(blob.data, blob_dims[1:])
+            #mean=mean[:,(256-224)//2:(256-224)//2+224,(256-224)//2:(256-224)//2+224]
+        return mean
+except:
+    def load_mean_file(mean_file):
+        assert mean_file.endswith('.npy')
+        return np.load(mean_file)
+
 lrpolicy = None
 def run(args):
     global lrpolicy
@@ -1279,30 +1305,29 @@ def run(args):
         for t in X:
             m[t]=X[t].shape
             dtypes[t]=X[t].dtype
-#        if len(y.shape)==4:
-#            y_tensor_type=T.tensor4
-#        elif len(y.shape)==2:
-#            y_tensor_type=T.matrix
-#        elif len(y.shape)==1:
-#            y_tensor_type=T.ivector
         it.close()
         break
-
-    #source_image_var = T.tensor4('source_image')
-    #action_var = T.tensor4('action')
-    #target_image_var = T.tensor4('target_image')
 
     lr=easyshared.add('lr.txt',learning_rate)
     sigma_base=easyshared.add('sigma.txt',1.0)
     pltskip=easyshared.add('pltskip.txt',0.0)
     decay=easyshared.add('decay.txt',1e-8)
 
+    subtractMean = args.subtractMean #'image', 'pixel' or 'none'
+    
+    mean_data = load_mean_file(args.mean) if args.mean!='' else None
+
+    if subtractMean == 'pixel' and mean_data is not None:
+        pixel = mean_data.mean(axis=(1,2),keepdims=True,dtype=floatX)
+        mean_data = np.tile(pixel,(1,mean_data.shape[1],mean_data.shape[2]))
 
     easyshared.update()
     
     sigma_var=theano.shared(floatXconst(1.0))
 
     inputs={}
+    if mean_data is not None:
+        m['mean']=mean_data
     for k in m:
         print k,m[k],dtypes[k]
         name=k
@@ -1311,7 +1336,7 @@ def run(args):
         var_name = ("%s.input" % name) if name is not None else "input"
         input_var = input_var_type(var_name)
         inputs[k]=lasagne.layers.InputLayer(name=name,input_var=input_var,shape=m[k])
-        print lasagne.layers.get_output_shape(inputs[k])
+        #print lasagne.layers.get_output_shape(inputs[k])
 
 #    source_image_network=lasagne.layers.InputLayer(name='source_image',shape=m['source_image'],input_var=source_image_var)
 #    target_image_network=lasagne.layers.InputLayer(name='target_image',shape=m['target_image'],input_var=target_image_var)
@@ -1817,7 +1842,7 @@ class ArgumentParser(argparse.ArgumentParser):
         define_integer(
             'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
         #define_string('labels_list', '', """Text file listing label definitions""")
-        #define_string('mean', '', """Mean image file""")
+        define_string('mean', '', """Mean image file""")
         define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
         #define_string('network', '', """File containing network (model)""")
         #define_string('networkDirectory', '', """Directory in which network exists""")
@@ -1829,9 +1854,9 @@ class ArgumentParser(argparse.ArgumentParser):
         #    'snapshotInterval', 1.0,
         #    """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
-        #define_string(
-        #    'subtractMean', 'none',
-        #    """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
+        define_string(
+            'subtractMean', 'none',
+            """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
         define_string('train_db', '', """Directory with training file source""")
         #define_string(
         #    'train_labels', '',
