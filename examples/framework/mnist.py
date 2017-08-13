@@ -12,6 +12,8 @@ from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model,curr
 
 def build_cnn(inputs):
     network=inputs['image']
+    if 'mean' in inputs:
+        network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
     y=inputs['target']
     return deepstacks.lasagne.build_network(network,(
         (0,32,5,1,0,0,{}),

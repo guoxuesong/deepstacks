@@ -14,6 +14,8 @@ from deepstacks.util.curry import curry
 
 def build_cnn(inputs):
     network=inputs['image']
+    if 'mean' in inputs:
+        network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
     y=inputs['target']
     return deepstacks.lasagne.build_network(network, prettylayers
         (0,32,5,1,0,0)
