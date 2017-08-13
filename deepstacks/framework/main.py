@@ -1248,12 +1248,14 @@ def run(args):
     else:
         mode='training'
 
+    print mode
+
     num_epochs=args.epoch
     num_batchsize=args.batch_size
     learning_rate=args.lr_base_rate
     momentum=args.momentum
     grads_clip=1.0
-    accumulation=1
+    accumulation=args.accumulation
 
 #    if batch_iterator_train is None:
 #        loader=load_200
@@ -1558,17 +1560,19 @@ def run(args):
 #            if inference_handler is not None:
 #                inference_handler(out[0])
 #        return out[0]
-    elif mode=='training':
+    elif mode=='training' or mode=='validation':
         #updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
         updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
-        if train_fn is None:
-            train_fn = theano.function(
-                    map(lambda x:x.input_var,sorted_values(inputs)), 
-                    [loss,extra_loss]+losslist, 
-                    updates=updates, 
-                    on_unused_input='warn', 
-                    allow_input_downcast=True,
-                    )
+        if mode=='training':
+            if train_fn is None:
+                train_fn = theano.function(
+                        map(lambda x:x.input_var,sorted_values(inputs)), 
+                        [loss,extra_loss]+losslist, 
+                        updates=updates, 
+                        on_unused_input='warn', 
+                        allow_input_downcast=True,
+                        )
+
         if val_fn is None:
             val_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
@@ -1577,8 +1581,9 @@ def run(args):
                     allow_input_downcast=True,
                     )
 
-        for h in on_training_started:
-            h(locals())
+        if mode=='training':
+            for h in on_training_started:
+                h(locals())
 
         min_loss=float('inf')
         min_valloss=float('inf')
@@ -1592,93 +1597,94 @@ def run(args):
 
             break_flag = False
 
+            if mode=='training':
 
-            # In each epoch, we do a full pass over the training data:
-            train_err = 0
-            train_penalty = 0
-            train_errlist = None
-            train_batches = 0
-            start_time = time.time()
-            count = 0
-            loopcount = 0
-            train_it=batch_iterator_train(num_batchsize,args.train_db)
+                # In each epoch, we do a full pass over the training data:
+                train_err = 0
+                train_penalty = 0
+                train_errlist = None
+                train_batches = 0
+                start_time = time.time()
+                count = 0
+                loopcount = 0
+                train_it=batch_iterator_train(num_batchsize,args.train_db)
 
-            train_len = 80
-            err=None
-            while True:
-                stop=False
-                for i in range(train_len):
-                    try:
-                        batch = next(train_it)
-                    except StopIteration:
-                        stop=True
-                        break
+                train_len = 80
+                err=None
+                while True:
+                    stop=False
+                    for i in range(train_len):
+                        try:
+                            batch = next(train_it)
+                        except StopIteration:
+                            stop=True
+                            break
 
-                    if data_shaker is not None:
-                        batch = data_shaker(batch)
+                        if data_shaker is not None:
+                            batch = data_shaker(batch)
 
-                    res=train_fn(*sorted_values(batch))
-                    err=res[0]
-                    penalty=res[1]
-                    errlist=res[2:]
-                    train_err += err
-                    train_penalty += penalty
-                    if train_errlist is None:
-                        train_errlist=errlist
+                        res=train_fn(*sorted_values(batch))
+                        err=res[0]
+                        penalty=res[1]
+                        errlist=res[2:]
+                        train_err += err
+                        train_penalty += penalty
+                        if train_errlist is None:
+                            train_errlist=errlist
+                        else:
+                            for j in range(len(errlist)):
+                                train_errlist[j]=train_errlist[j]+errlist[j]
+
+                        train_batches += 1
+                        count = count+1
+
+                        for h in on_batch_finished:
+                            h(locals())
+
+                        sys.stdout.write(".")
+
+                        #show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,num_actions,i)
+                        if 0xFF & cv2.waitKey(100) == 27:
+                            break_flag = True
+                            break
+
+                    if lrpolicy is None:
+                        total_training_steps = num_epochs*train_batches
+                        lrpolicy = lr_policy.LRPolicy(args.lr_policy,
+                                                      args.lr_base_rate,
+                                                      args.lr_gamma,
+                                                      args.lr_power,
+                                                      total_training_steps,
+                                                      args.lr_stepvalues)
+                    print '' 
+                    # Then we print the results for this epoch:
+                    if not stop:
+                        print "Epoch {}:{} of {} took {:.3f}s".format(
+                            epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time) 
                     else:
-                        for j in range(len(errlist)):
-                            train_errlist[j]=train_errlist[j]+errlist[j]
+                        print "Training {} of {} took {:.3f}s".format(
+                            epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
+                    avg_err = train_err / train_batches
+                    avg_penalty = train_penalty / train_batches
+                    #print "  training loss:\t\t{:.6f}".format(avg_err)
+                    print ' ','training loss',':',avg_err
+                    print ' ','training penalty',':',avg_penalty
+                    tmp = map(lambda x:x/train_batches,train_errlist)
+                    for tag,sli in tagslice:
+                        if len(tmp[sli])>0:
+                            print ' ',tag,':',tmp[sli]
 
-                    train_batches += 1
-                    count = count+1
-
-                    for h in on_batch_finished:
-                        h(locals())
-
-                    sys.stdout.write(".")
-
-                    #show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,num_actions,i)
-                    if 0xFF & cv2.waitKey(100) == 27:
-                        break_flag = True
+                    #vals = []
+                    #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
+                    #    val = abs(t.get_value()).max()
+                    #    vals += [val]
+                    #print 'max |w|:',max(vals)
+                    if stop:
                         break
+                    loopcount+=1
 
-                if lrpolicy is None:
-                    total_training_steps = num_epochs*train_batches
-                    lrpolicy = lr_policy.LRPolicy(args.lr_policy,
-                                                  args.lr_base_rate,
-                                                  args.lr_gamma,
-                                                  args.lr_power,
-                                                  total_training_steps,
-                                                  args.lr_stepvalues)
-                print '' 
-                # Then we print the results for this epoch:
-                if not stop:
-                    print "Epoch {}:{} of {} took {:.3f}s".format(
-                        epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time) 
-                else:
-                    print "Training {} of {} took {:.3f}s".format(
-                        epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
-                avg_err = train_err / train_batches
-                avg_penalty = train_penalty / train_batches
-                #print "  training loss:\t\t{:.6f}".format(avg_err)
-                print ' ','training loss',':',avg_err
-                print ' ','training penalty',':',avg_penalty
-                tmp = map(lambda x:x/train_batches,train_errlist)
-                for tag,sli in tagslice:
-                    if len(tmp[sli])>0:
-                        print ' ',tag,':',tmp[sli]
-
-                #vals = []
-                #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
-                #    val = abs(t.get_value()).max()
-                #    vals += [val]
-                #print 'max |w|:',max(vals)
-                if stop:
-                    break
-                loopcount+=1
-
-            if (epoch+1)%args.validation_interval!=0:
-                continue
+                if (epoch+1)%args.validation_interval!=0:
+                    continue
 
             # And a full pass over the validation data:
             val_err = 0
@@ -1755,20 +1761,23 @@ def run(args):
                 sorted_values(networks) for networks in all_networks
                 ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=[])
             snapshot = False
-            if train_err / train_batches < min_loss:
-                min_loss = train_err / train_batches
-                print 'New low training loss',':',min_loss
-                snapshot = True
+            if mode=='training':
+                if train_err / train_batches < min_loss:
+                    min_loss = train_err / train_batches
+                    print 'New low training loss',':',min_loss
+                    snapshot = True
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
                 print 'New low validation loss',':',min_valloss
                 snapshot = True
-            if snapshot:
-                save_params(epoch+1,[
-                    sorted_values(networks) for networks in all_networks
-                    ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
-            for h in on_epoch_finished:
-                h(locals())
+            if mode=='training':
+                if snapshot:
+                    save_params(epoch+1,[
+                        sorted_values(networks) for networks in all_networks
+                        ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
+            if mode=='training':
+                for h in on_epoch_finished:
+                    h(locals())
             while gc.collect() > 0:
                 pass
             #print 'gc'
@@ -1776,8 +1785,9 @@ def run(args):
             #print np.mean(tmp)
             if break_flag or 0xFF & cv2.waitKey(100) == 27:
                 break
-        for h in on_training_finished:
-            h(locals())
+        if mode=='training':
+            for h in on_training_finished:
+                h(locals())
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
@@ -1796,47 +1806,49 @@ class ArgumentParser(argparse.ArgumentParser):
         def define_boolean(key,default,desc):
             parser.add_argument('--'+key,type=bool,default=default,help=desc)
 
+        define_integer('accumulation', 1, """Accumulate gradients over multiple batches.""")
+
         # Basic model parameters. #float, integer, boolean, string
         define_integer('batch_size', 16, """Number of images to process in a batch""")
-        define_integer(
-            'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
+        #define_integer(
+        #    'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
         define_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
         define_string('inference_db', '', """Directory with inference file source""")
         define_integer(
             'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
-        define_string('labels_list', '', """Text file listing label definitions""")
-        define_string('mean', '', """Mean image file""")
+        #define_string('labels_list', '', """Text file listing label definitions""")
+        #define_string('mean', '', """Mean image file""")
         define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
-        define_string('network', '', """File containing network (model)""")
-        define_string('networkDirectory', '', """Directory in which network exists""")
-        define_string('optimization', 'sgd', """Optimization method""")
+        #define_string('network', '', """File containing network (model)""")
+        #define_string('networkDirectory', '', """Directory in which network exists""")
+        #define_string('optimization', 'sgd', """Optimization method""")
         define_string('save', 'results', """Save directory""")
-        define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
-        define_boolean('shuffle', False, """Shuffle records before training""")
-        define_float(
-            'snapshotInterval', 1.0,
-            """Specifies the training epochs to be completed before taking a snapshot""")
+        #define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
+        #define_boolean('shuffle', False, """Shuffle records before training""")
+        #define_float(
+        #    'snapshotInterval', 1.0,
+        #    """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
-        define_string(
-            'subtractMean', 'none',
-            """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
+        #define_string(
+        #    'subtractMean', 'none',
+        #    """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
         define_string('train_db', '', """Directory with training file source""")
-        define_string(
-            'train_labels', '',
-            """Directory with an optional and seperate labels file source for training""")
+        #define_string(
+        #    'train_labels', '',
+        #    """Directory with an optional and seperate labels file source for training""")
         define_string('validation_db', '', """Directory with validation file source""")
-        define_string(
-            'validation_labels', '',
-            """Directory with an optional and seperate labels file source for validation""")
-        define_string(
-            'visualizeModelPath', '', """Constructs the current model for visualization""")
-        define_boolean(
-            'visualize_inf', False, """Will output weights and activations for an inference job.""")
-        define_string(
-            'weights', '', """Filename for weights of a model to use for fine-tuning""")
+        #define_string(
+        #    'validation_labels', '',
+        #    """Directory with an optional and seperate labels file source for validation""")
+        #define_string(
+        #    'visualizeModelPath', '', """Constructs the current model for visualization""")
+        #define_boolean(
+        #    'visualize_inf', False, """Will output weights and activations for an inference job.""")
+        #define_string(
+        #    'weights', '', """Filename for weights of a model to use for fine-tuning""")
 
         # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
-        define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
+        #define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
 
         # @TODO(tzaman); remove torch mentions below
         define_float('lr_base_rate', '0.01', """Learning rate""")
@@ -1854,36 +1866,36 @@ class ArgumentParser(argparse.ArgumentParser):
             """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
             For the 'multistep' lr_policy you can input multiple values seperated by commas""")
 
-    #    # Tensorflow-unique arguments for DIGITS
-    #    define_string(
-    #        'save_vars', 'all',
-    #        """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
-    #    define_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
-    #    define_boolean(
-    #        'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
-    #    define_boolean('log_device_placement', False, """Whether to log device placement.""")
-    #    define_integer(
-    #        'log_runtime_stats_per_step', 0,
-    #        """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
-
-    #    # Augmentation
-    #    define_string(
-    #        'augFlip', 'none',
-    #        """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
-    #    define_float(
-    #        'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
-    #    define_float(
-    #        'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
-    #         as pre-processing  augmentation""")
-    #    define_boolean(
-    #        'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
-    #        dividing by its own standard deviation.""")
-    #    define_float(
-    #        'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
-    #    define_float(
-    #        'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
-    #    define_float(
-    #        'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
+        ## Tensorflow-unique arguments for DIGITS
+        #define_string(
+        #    'save_vars', 'all',
+        #    """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
+        #define_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
+        #define_boolean(
+        #    'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
+        #define_boolean('log_device_placement', False, """Whether to log device placement.""")
+        #define_integer(
+        #    'log_runtime_stats_per_step', 0,
+        #    """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+         
+        ## Augmentation
+        #define_string(
+        #    'augFlip', 'none',
+        #    """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
+        #define_float(
+        #    'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
+        #define_float(
+        #    'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
+        #     as pre-processing  augmentation""")
+        #define_boolean(
+        #    'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
+        #    dividing by its own standard deviation.""")
+        #define_float(
+        #    'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
+        #define_float(
+        #    'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
+        #define_float(
+        #    'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
 
 
 args = None
