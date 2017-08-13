@@ -66,11 +66,11 @@ class VideoCaptureReader(object):
             thread.start_new_thread(self.backend,())
             print 'ok'
         else:
-            print 'skip'
+            print 'skip: '+self.vurl
     @property
     def busy(self):
         if time.time()-self.ctime>600:
-            print >>sys.stderr,'warning: vcap fail, try reload'
+            print >>sys.stderr,'reload'+self.vurl
             self.ctime=time.time()
             self.vcap=cv2.VideoCapture(self.vurl)
         return self.image is None
@@ -78,11 +78,13 @@ class VideoCaptureReader(object):
         pass
     def backend(self):
         while True:
-            ret,image=self.vcap.read()
-            if ret:
-                self.image=image.copy()
-            #else:
-            #    self.image=None
+            if self.vcap is not None:
+                ret,image=self.vcap.read()
+                if ret:
+                    self.image=image.copy()
+                else:
+                    print 'read fail: '+self.vurl
+                    self.vcap=None
             time.sleep(1.0/self.fps)
     def read(self):
         if self.image is None:
