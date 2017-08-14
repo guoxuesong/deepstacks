@@ -44,7 +44,7 @@ sys.setrecursionlimit(50000)
 
 floatX=theano.config.floatX
 
-from ..utils.momentum import sgd,momentum,adamax
+from ..utils.momentum import adamax
 from ..utils.curry import *
 
 from ..utils.multinpy import readnpy,writenpy
@@ -1586,23 +1586,25 @@ def run(args):
 #                inference_handler(out[0])
 #        return out[0]
     elif mode=='training' or mode=='validation':
-        if args.optimization=='sgd'
-            updates = sgd(loss, params, learning_rate=lr, grads_clip=grads_clip)
-        elif args.optimization=='momentum'
-            updates = momentum(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
-        elif args.optimization=='nesterov_momentum'
-            updates = asagne.updates.nesterov_momentum(loss, params, learning_rate=lr)
-        elif args.optimization=='adagrad'
-            updates = asagne.updates.adagrad(loss, params, learning_rate=lr)
-        elif args.optimization=='rmsprop'
-            updates = asagne.updates.rmsprop(loss, params, learning_rate=lr)
-        elif args.optimization=='adadelta'
-            updates = asagne.updates.adadelta(loss, params, learning_rate=lr)
-        elif args.optimization=='adam'
-            updates = lasagne.updates.adam(loss, params, learning_rate=lr)
-        elif args.optimization=='adamax'
-            updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
         if mode=='training':
+            if args.optimization=='sgd':
+                updates = lasagne.updates.sgd(loss, params, learning_rate=lr)
+            elif args.optimization=='momentum':
+                updates = lasagne.updates.momentum(loss, params, learning_rate=lr)
+            elif args.optimization=='nesterov_momentum':
+                updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=lr)
+            elif args.optimization=='adagrad':
+                updates = lasagne.updates.adagrad(loss, params, learning_rate=lr)
+            elif args.optimization=='rmsprop':
+                updates = lasagne.updates.rmsprop(loss, params, learning_rate=lr)
+            elif args.optimization=='adadelta':
+                updates = lasagne.updates.adadelta(loss, params, learning_rate=lr)
+            elif args.optimization=='adam':
+                updates = lasagne.updates.adam(loss, params, learning_rate=lr)
+            elif args.optimization=='adamax':
+                updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
+            elif args.optimization=='adamax2':
+                updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
             if train_fn is None:
                 train_fn = theano.function(
                         map(lambda x:x.input_var,sorted_values(inputs)), 
