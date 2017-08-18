@@ -1,12 +1,12 @@
 import theano
 import os
-from floatXconst import * 
+from . import floatX
 
 file2shared={}
 
 def add(filename,value):
     global file2shared
-    file2shared[filename]=theano.shared(floatXconst(value))
+    file2shared[filename]=theano.shared(floatX(value))
     return file2shared[filename]
 
 def update():
@@ -17,4 +17,4 @@ def update():
             t=f.read()
             f.close()
             print 'read value from',filename,', got',float(t)
-            file2shared[filename].set_value(floatXconst(float(t)))
+            file2shared[filename].set_value(floatX(float(t)))
