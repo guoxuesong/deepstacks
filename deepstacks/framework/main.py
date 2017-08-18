@@ -10,7 +10,7 @@ from deepstacks.macros import *
 
 #using_nolearn=False
 
-from ..utils.floatXconst import * 
+from .. import utils
 from ..lasagne.utils import ordered_errors as get_ordered_errors
 
 import sys
@@ -85,7 +85,7 @@ def sorted_values(m):#{{{
 #    return res#}}}
 #
 #def smooth_abs(x):#{{{
-#        return (x*x+floatXconst(1e-8))**floatXconst(0.5);#}}}
+#        return (x*x+utils.floatX(1e-8))**utils.floatX(0.5);#}}}
 #
 
 
@@ -103,10 +103,10 @@ def inputlayer_zeros(shape):#{{{
     return ZeroLayer(shape,input_var=T.zeros(shape,dtype=floatX))#}}}
 def inputlayer_oneslike(layer,scale=1.0):#{{{
     shape=lasagne.layers.get_output_shape(layer)
-    res=ZeroLayer(shape,input_var=T.ones(shape,dtype=floatX)*floatXconst(scale))
+    res=ZeroLayer(shape,input_var=T.ones(shape,dtype=floatX)*utils.floatX(scale))
     return res#}}}
 def inputlayer_ones(shape,scale=1.0):#{{{
-    return ZeroLayer(shape,input_var=T.ones(shape,dtype=floatX)*floatXconst(scale))#}}}
+    return ZeroLayer(shape,input_var=T.ones(shape,dtype=floatX)*utils.floatX(scale))#}}}
 
 def touch(fname, times=None):#{{{
     with open(fname, 'a'):
@@ -502,6 +502,11 @@ def register_model_handler(h):
     global model_handlers
     model_handlers+=[h]
 
+params_handlers=[]
+
+def register_params_handler(h):
+    global params_handlers
+    params_handlers+=[h]
 
 #quit_flag=False
 
@@ -922,7 +927,7 @@ def make_nolearn_scores(losslist,tagslice):
 #def mybatchok(num_batchsize,sigma_base,sigma_var,net,history):
 #    #global sn
 #
-#    sigma=floatXconst(random.random()*sigma_base.get_value())
+#    sigma=utils.floatX(random.random()*sigma_base.get_value())
 #    sigma_var.set_value(sigma)
 #
 #    sys.stdout.write(".")
@@ -1323,7 +1328,7 @@ def run(args):
 
     easyshared.update()
     
-    sigma_var=theano.shared(floatXconst(1.0))
+    sigma_var=theano.shared(utils.floatX(1.0))
 
     inputs={}
     if mean_data is not None:
@@ -1413,10 +1418,16 @@ def run(args):
             loading_networks_list+=[loading_networks]
 
     newlayers = conv_groups['newlayer'] if 'newlayer' in conv_groups else []
+    if args.weights != '':
+        weights=os.path.join(args.save,args.weights)
+    else:
+        weights=os.path.join(args.save,args.snapshotPrefix)
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
-        ],[],os.path.join(args.save,args.snapshotPrefix),ignore_mismatch=True,newlayers=newlayers)
+        ],[],weights,ignore_mismatch=True,newlayers=newlayers)
     print 'epoch_begin=',epoch_begin
+    for h in params_handlers:
+        h(inputs,network,stacks,layers,raw_errors,raw_watchpoints)
     if 'deletelayer' in conv_groups:
         deletelayers = conv_groups['deletelayer']
         save_params(epoch_begin,[
@@ -1475,7 +1486,7 @@ def run(args):
     # 现象提供 64*64*3 个方程，所以我们只需要 700 多个“理想的”现象，就可以
     # 确定所有的参数，就在这 700 多个现象上平摊
 
-    #l2_penalty = lasagne.regularization.regularize_network_params(networks.values(),lasagne.regularization.l1)/floatXconst(2.0)
+    #l2_penalty = lasagne.regularization.regularize_network_params(networks.values(),lasagne.regularization.l1)/utils.floatX(2.0)
     #loss = loss+l2_penalty/(lasagne.layers.count_params(networks.values(),regularizable=True))/(lasagne.layers.count_params(networks.values(),trainable=True)/(64*64*3))
 
     
@@ -1705,10 +1716,10 @@ def run(args):
                     else:
                         print "Training {} of {} took {:.3f}s".format(
                             epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
-                    avg_err = train_err / train_batches
+                    avg_train_err = train_err / train_batches
                     avg_penalty = train_penalty / train_batches
-                    #print "  training loss:\t\t{:.6f}".format(avg_err)
-                    print ' ','training loss',':',avg_err
+                    #print "  training loss:\t\t{:.6f}".format(avg_train_err)
+                    print ' ','training loss',':',avg_train_err
                     print ' ','training penalty',':',avg_penalty
                     tmp = map(lambda x:x/train_batches,train_errlist)
                     for tag,sli in tagslice:
@@ -1778,9 +1789,9 @@ def run(args):
                 else:
                     print "Validation {} of {} took {:.3f}s".format(
                         epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
-                avg_err = val_err / val_batches
-                #print "  validation loss:\t\t{:.6f}".format(avg_err)
-                print ' ','validation loss',':',avg_err
+                avg_val_err = val_err / val_batches
+                #print "  validation loss:\t\t{:.6f}".format(avg_val_err)
+                print ' ','validation loss',':',avg_val_err
                 tmp = map(lambda x:x/val_batches,val_errlist)
                 for tag,sli in valtagslice:
                     if len(tmp[sli])>0:
@@ -1809,10 +1820,11 @@ def run(args):
                 min_valloss = val_err / val_batches
                 print 'New low validation loss',':',min_valloss
             if mode=='training':
-                if (epoch+1)%max(1,int(args.snapshotInterval))==0:
-                    save_params(epoch+1,[
-                        sorted_values(networks) for networks in all_networks
-                        ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
+                if args.snapshotInterval>0:
+                    if (epoch+1)%max(1,int(args.snapshotInterval))==0:
+                        save_params(epoch+1,[
+                            sorted_values(networks) for networks in all_networks
+                            ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
             if mode=='training':
                 for h in on_epoch_finished:
                     h(locals())
@@ -1882,8 +1894,8 @@ class ArgumentParser(argparse.ArgumentParser):
         #    'visualizeModelPath', '', """Constructs the current model for visualization""")
         #define_boolean(
         #    'visualize_inf', False, """Will output weights and activations for an inference job.""")
-        #define_string(
-        #    'weights', '', """Filename for weights of a model to use for fine-tuning""")
+        define_string(
+            'weights', '', """Filename for weights of a model to use for fine-tuning""")
 
         # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
         #define_integer('bitdepth', 8, """Specifies an image's bitdepth""")
