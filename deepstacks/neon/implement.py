@@ -494,7 +494,7 @@ def dimshuffle_handler(network, flags, stacks, this_model):
 
 def noise_handler(network, flags, stacks, this_model):
     sigma = flags['noise']
-    if sigma == True:
+    if sigma is True:
         sigma = 0.1
     return sequential(layers=(network, GaussianNoiseLayer(sigma))), ()
 
@@ -515,7 +515,7 @@ def lrn_handler(network, flags, stacks, this_model):
 
 def dropout_handler(network, flags, stacks, this_model):
     p = flags['dropout']
-    if p == True:
+    if p is True:
         p = 0.5
     if p>1.0:
         p=1.0
