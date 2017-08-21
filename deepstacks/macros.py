@@ -254,3 +254,28 @@ def namespace(nameprefix, l):
                 m['push'] += [nameprefix+k]
         res += (a[:-1]+(m,),)
     return res
+
+def linear(l):
+    l = macros(l)
+    res = ()
+    l = l[::-1]
+    found = False
+    for i in range(len(l)):
+        a = l[i]
+        m = a[-1].copy()
+        if not found:
+            assert a[0]==0
+            if a[1]>0:
+                m['linear']=True
+                a = a[:-1]+(m,)
+                found = True
+        res = res+(a,)
+    res = res[::-1]
+    return res
+
+def resnet(l):
+    return macros((
+        (ln,0,'_restmp'),
+        (linear,l),
+        (('_restmp',0),0,0,0,0,0,{'add':True,'relu':True}),
+        ))
