@@ -1,4 +1,5 @@
 from .stacked import curr_layer, curr_stacks, curr_flags, curr_model
+from .stacked import set_verbose
 
 #__all__ = []
 
