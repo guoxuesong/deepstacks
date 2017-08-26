@@ -117,12 +117,26 @@ def iterate_minibatches(batchsize, database, shufflesize=1, use_caffe=True):
                 }
         yield X
 
-register_batch_iterator(AsyncIterate(curry(iterate_minibatches,shufflesize=1),AsyncIterate(curry(iterate_minibatches,shufflesize=1))))
+from scipy.misc import imsave,imread
+def iterate_one(batchsize, database):
+    image=imread(database).transpose(2,0,1)[np.newaxis,...]
+    X = {
+            'image':image,
+            'target':np.zeros((1,1),dtype=theano.config.floatX),
+            }
+    yield X
+
+register_batch_iterator(
+        AsyncIterate(curry(iterate_minibatches,shufflesize=1)),
+        AsyncIterate(curry(iterate_minibatches,shufflesize=1)),
+        AsyncIterate(curry(iterate_one)),
+        )
 
 if __name__=='__main__':
     count = 0
-    for x in iterate_minibatches(512,'/mnt/work/DIGITS/digits/jobs/20170610-114031-64d0/train_db',shufflesize=2):
-        #print x['image'].shape
+    for x in iterate_minibatches(512,'/home/ubuntu/work/DIGITS/digits/jobs/20170825-163329-a5a4/train_db',shufflesize=2):
+        print x['image'].shape
+        print x['target'].shape
         print count
         count += 1
 
