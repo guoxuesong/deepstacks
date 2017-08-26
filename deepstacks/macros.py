@@ -8,8 +8,8 @@ class LayerLoader(object):
 
     def __call__(self,*args,**kwargs):
         if len(args)==0 and len(kwargs)==0:
-            for t in self.layers:
-                print t
+            #for t in self.layers:
+            #    print t
             return self.layers
         if callable(args[0]):
             self.layers+=((macro,args[0],args[1:],kwargs,),)

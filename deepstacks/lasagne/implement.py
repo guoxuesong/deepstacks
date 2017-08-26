@@ -7,6 +7,7 @@ import theano.tensor as T
 import lasagne
 
 import math
+from .. import stacked
 from ..stacked import Layers, register_layers_class
 from ..stacked import register_concat_handler, register_inputs_handler
 from ..stacked import register_flag_handler, register_flag_handler_closer
@@ -78,7 +79,8 @@ class LasagneLayers(Layers):
         m = {}
         for k in self.future:
             m[self.future[k]] = self.stacks[k][0]
-        print m
+        if stacked.verbose:
+            print m
         stacks_replace_input(self.stacks, m)
 
 register_layers_class(LasagneLayers)
@@ -660,7 +662,8 @@ register_flag_handler('reshape', reshape_handler)
 
 
 def layer_handler(network):
-    print 'output_shape:', lasagne.layers.get_output_shape(network)
+    if stacked.verbose:
+        print 'output_shape:', lasagne.layers.get_output_shape(network)
 
 register_layer_handler(layer_handler)
 

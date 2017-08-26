@@ -7,7 +7,7 @@ def fields(a):
     res = ()
     count = 0
     for line in a:
-        print count, line
+        #print count, line
         if type(line[-1]) == set or type(line[-1]) == dict:
             pass
         else:
@@ -51,6 +51,6 @@ def fields(a):
         res += (
                 (line[0], flags),
                 )
-        print count, res[-1]
+        #print count, res[-1]
         count += 1
     return res

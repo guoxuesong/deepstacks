@@ -1320,6 +1320,9 @@ def run(args):
 
     logging.info(mode)
 
+    if args.verbose:
+        deepstacks.set_verbose(verbose)
+
     if args.seed:
         random.random.seed(args.seed)
         np.random.seed(args.seed)
@@ -1385,7 +1388,9 @@ def run(args):
         m['mean']=mean_data.shape
         dtypes['mean']=mean_data.dtype
     for k in m:
-        print k,m[k],dtypes[k]
+        out=StringIO()
+        print >>out,k,m[k],dtypes[k]
+        logging.info(string.strip(out.getvalue()))
         name=k
         input_var_type = T.TensorType(dtypes[k],
                 [False,]+[s == 1 for s in m[k][1:]])
@@ -1997,6 +2002,7 @@ class ArgumentParser(argparse.ArgumentParser):
         define_string('save', 'results', """Save directory""")
         define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
         define_boolean('shuffle', False, """Shuffle records before training""") #ignored
+        define_boolean('verbose', False, """Print more""")
         define_float(
             'snapshotInterval', 1.0,
             """Specifies the training epochs to be completed before taking a snapshot""")

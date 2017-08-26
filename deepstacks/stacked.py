@@ -2,6 +2,10 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
+verbose=False
+def set_verbose(val):
+    global verbose
+    verbose=val
 
 class Layers(object):
     def __init__(self, network, stacks):
@@ -219,7 +223,8 @@ def build_network(network, a, m={}, **kwargs):
 
     count = 0
     for info in a:
-        print count, info
+        if verbose:
+            print count, info
         count += 1
 
         inputs = info[0]
@@ -261,7 +266,8 @@ def build_network(network, a, m={}, **kwargs):
             })
         flags = info[-1]
 
-        print info
+        if verbose:
+            print info
 
         active_handlers = set()
 
@@ -277,7 +283,8 @@ def build_network(network, a, m={}, **kwargs):
                 active_handlers.add(h)
                 network, layers = h(network, info[-1], stacks, this_model)
                 paramlayers += layers
-        print network
+        if verbose:
+            print network
         all_layers.add(network)
 
         if layer_handler:
@@ -288,7 +295,8 @@ def build_network(network, a, m={}, **kwargs):
         kwargs['finish'](stacks,this_model['errors'],this_model['watchpoints'])
     all_layers.finish()
 
-    print 'network before wrapper:', network
+    if verbose:
+        print 'network before wrapper:', network
     if network_wrapper:
         network = network_wrapper(network, stacks, this_model)
 
