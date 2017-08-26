@@ -4,6 +4,9 @@ DEEPSTACKS.LASAGNE
 A high-level model representation and framework for Lasagne, with limited
 support for neon.
 
+A deepstacks enabled DIGITS is avaliable at
+https://github.com/guoxuesong/DIGITS.git
+
 Philosophy
 ----------
 
