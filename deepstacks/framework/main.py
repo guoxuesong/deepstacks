@@ -5,8 +5,13 @@
 #from pympler import tracker
 #tr = tracker.SummaryTracker()
 
+import deepstacks
 from deepstacks.macros import *
+from .macros import *
+import pickle
 #from memory_profiler import memory_usage
+
+from StringIO import StringIO
 
 #using_nolearn=False
 
@@ -22,8 +27,16 @@ import random
 import gc
 import fcntl
 import copy
+import string
+import logging
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO,
+                    stream=sys.stdout)
+#logging.info('Timeline trace written to %s', tl_fn)
 from collections import OrderedDict
-print 'start theano ...'
+print os.environ.get('THEANO_FLAGS')
+logging.info('start theano ...')
 import theano
 import theano.tensor as T
 
@@ -123,7 +136,7 @@ def set_param_value(params,values,ignore_mismatch=False):#{{{
         vshape=v.shape
         if len(pshape) != len(vshape):
             if ignore_mismatch:
-                print ("WARNING: mismatch: parameter has shape %r but value to "
+                logging.warning("mismatch: parameter has shape %r but value to "
                         "set has shape %r") % (pshape, vshape)
                 res+=[p]
             else:
@@ -150,7 +163,7 @@ def set_param_value(params,values,ignore_mismatch=False):#{{{
                 else:
                     for i in range(len(pshape)):
                         if pshape[i]<vshape[i]:
-                            print "mismatch: parameter has shape %r but value to set has shape %r" % (pshape, vshape)
+                            logging.error("mismatch: parameter has shape %r but value to set has shape %r" % (pshape, vshape))
                             res+=[p]
                             setvalue=False
                             break
@@ -162,7 +175,7 @@ def set_param_value(params,values,ignore_mismatch=False):#{{{
                                          (pshape, vshape))
 
             if needpad:
-                print 'WARNING: pad parameter value from %r to %r' % (vshape,pshape)
+                logging.warning('pad parameter value from %r to %r' % (vshape,pshape))
                 #print pshape,v.shape,padlist
                 v=np.pad(v,padlist,'constant')
                 res+=[p]
@@ -1227,11 +1240,22 @@ train_fn = None
 val_fn = None
 inference_fn = None
 
-def inference(num_batchsize,inference_db):
+def inference(num_batchsize,inference_db,mean_data=None):
+    count=0
     for batch in batch_iterator_inference(num_batchsize,inference_db):
+        if type(batch)==tuple:
+            ids,batch=batch
+        else:
+            ids=[]
+            for t in range(num_batchsize):
+                ids=ids+[count]
+                count+=1
+        if mean_data is not None:
+            assert 'mean' not in batch
+            batch['mean']=mean_data
         out = inference_fn(*sorted_values(batch))
         if inference_handler is not None:
-            inference_handler(out[0])
+            inference_handler(out[0],ids)
     return out[0]
 
 loss_handler=None
@@ -1266,10 +1290,25 @@ except:
         assert mean_file.endswith('.npy')
         return np.load(mean_file)
 
+class DefaultNetworkBuilder(object):
+    def __init__(self,modelfile):
+        self.modelfile=modelfile
+        m={}
+        exec(open(modelfile).read(), m)
+        self.network=m['network']
+    def __call__(self,inputs):
+        network=inputs['image']
+        if 'mean' in inputs:
+            network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
+        y=inputs['target']
+        return deepstacks.lasagne.build_network(network, self.network ,{ 'y':y })
+
+
 lrpolicy = None
 def run(args):
     global lrpolicy
     global train_fn,val_fn,inference_fn
+    global network_builder
     if args.train_db != '':
         mode='training'
     elif args.validation_db != '':
@@ -1279,13 +1318,20 @@ def run(args):
     else:
         mode='training'
 
-    print mode
+    logging.info(mode)
+
+    if args.seed:
+        random.random.seed(args.seed)
+        np.random.seed(args.seed)
+
+    if args.network!='':
+        network_builder=DefaultNetworkBuilder(os.path.join(os.path.dirname(os.path.realpath(__file__)),args.networkDirectory,args.network))
 
     num_epochs=args.epoch
     num_batchsize=args.batch_size
     learning_rate=args.lr_base_rate
     momentum=args.momentum
-    grads_clip=1.0
+    grads_clip=args.grads_clip
     accumulation=args.accumulation
 
 #    if batch_iterator_train is None:
@@ -1297,8 +1343,8 @@ def run(args):
     m={}
     dtypes={}
     #print batch_iterator_train
-    print args
-    print mode
+    #print args
+    #print mode
     if mode == 'training':
         it=batch_iterator_train(num_batchsize,args.train_db)
     elif mode == 'validation':
@@ -1307,6 +1353,8 @@ def run(args):
         it=batch_iterator_inference(num_batchsize,args.inference_db)
 
     for X in it:
+        if type(X)==tuple:
+            ids,X=X
         for t in X:
             m[t]=X[t].shape
             dtypes[t]=X[t].dtype
@@ -1320,11 +1368,13 @@ def run(args):
 
     subtractMean = args.subtractMean #'image', 'pixel' or 'none'
     
-    mean_data = load_mean_file(args.mean) if args.mean!='' else None
+    mean_data = load_mean_file(args.mean).astype(floatX) if args.mean!='' else None
 
     if subtractMean == 'pixel' and mean_data is not None:
         pixel = mean_data.mean(axis=(1,2),keepdims=True,dtype=floatX)
         mean_data = np.tile(pixel,(1,mean_data.shape[1],mean_data.shape[2]))
+    if mean_data is not None:
+        mean_data=np.tile(mean_data[np.newaxis,...],(num_batchsize,1,1,1))
 
     easyshared.update()
     
@@ -1332,7 +1382,8 @@ def run(args):
 
     inputs={}
     if mean_data is not None:
-        m['mean']=mean_data
+        m['mean']=mean_data.shape
+        dtypes['mean']=mean_data.dtype
     for k in m:
         print k,m[k],dtypes[k]
         name=k
@@ -1347,7 +1398,7 @@ def run(args):
 #    target_image_network=lasagne.layers.InputLayer(name='target_image',shape=m['target_image'],input_var=target_image_var)
 #    action_network=lasagne.layers.InputLayer(name='action',shape=m['action'],input_var=action_var)
 
-    print("Building model and compiling functions...")
+    #print "Building model and compiling functions..."
     delta_errors,state_layers,hidestate_layers,delta_layers,delta_predict_networks = [],[],[],[],[]
     zeroarch_networks,zeroarch_bnlayer,watcher_network,updater = None,None,None,None
     network,stacks,layers,raw_errors,raw_watchpoints = network_builder(inputs)
@@ -1357,9 +1408,9 @@ def run(args):
     #all_networks,ordered_errors,ordered_watch_errors,conv_groups = network_builder(inputs)
     all_networks=[create_layers_dict(layers)]
     ordered_errors = get_ordered_errors(raw_errors)
-    print ordered_errors
+    #print ordered_errors
     ordered_val_errors = get_ordered_errors(raw_errors,deterministic=True)
-    print ordered_val_errors
+    #print ordered_val_errors
     ordered_watch_errors = get_ordered_errors(raw_watchpoints)
     ordered_val_watch_errors = get_ordered_errors(raw_watchpoints,deterministic=True)
     conv_groups = stacks
@@ -1373,13 +1424,15 @@ def run(args):
     valtagslice = []
     valcount = 0
     for tag,errs in ordered_errors:
-        errors += errs
-        tagslice += [[tag,slice(count,count+len(errs))]]
-        count += len(errs)
+        if not tag.startswith('val:'):
+            errors += errs
+            tagslice += [[tag,slice(count,count+len(errs))]]
+            count += len(errs)
     for tag,errs in ordered_val_errors:
-        val_errors += errs
-        valtagslice += [[tag,slice(valcount,valcount+len(errs))]]
-        valcount += len(errs)
+        if not tag.startswith('train:'):
+            val_errors += errs
+            valtagslice += [[tag,slice(valcount,valcount+len(errs))]]
+            valcount += len(errs)
     assert len(val_errors)==len(errors)
     i=0
     for tag,errs in ordered_watch_errors:
@@ -1419,27 +1472,33 @@ def run(args):
 
     newlayers = conv_groups['newlayer'] if 'newlayer' in conv_groups else []
     if args.weights != '':
-        weights=os.path.join(args.save,args.weights)
+        weights=os.path.join(args.save,args.weights+'-')
+    elif args.snapshotPrefix !='':
+        weights=os.path.join(args.save,args.snapshotPrefix+'-')
     else:
-        weights=os.path.join(args.save,args.snapshotPrefix)
+        weights=os.path.join(args.save,'')
+    if args.snapshotPrefix !='':
+        prefix=os.path.join(args.save,args.snapshotPrefix+'-')
+    else:
+        prefix=os.path.join(args.save,'')
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
         ],[],weights,ignore_mismatch=True,newlayers=newlayers)
-    print 'epoch_begin=',epoch_begin
+    logging.info('epoch_begin=%d'%epoch_begin)
     for h in params_handlers:
         h(inputs,network,stacks,layers,raw_errors,raw_watchpoints)
     if 'deletelayer' in conv_groups:
         deletelayers = conv_groups['deletelayer']
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=deletelayers)
-        print 'layer(s) deleted.'
+            ],[],prefix,deletelayers=deletelayers)
+        logging.info('layer(s) deleted.')
         exit(0)
     if has_loading_networks:
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
-            ],[],os.path.join(args.save,args.snapshotPrefix))
-        print 'save.'
+            ],[],prefix)
+        logging.info('save.')
         exit(0)
 
     if updater is not None:
@@ -1474,7 +1533,7 @@ def run(args):
                 tmp = err.mean(dtype=floatX)
                 losslist = losslist+[tmp]
 
-    print 'count_params:',sum([lasagne.layers.count_params(networks.values(),trainable=True) for networks in all_networks],0)
+    logging.info('count_params: %d'%sum([lasagne.layers.count_params(networks.values(),trainable=True) for networks in all_networks],0))
 
     loss0 = loss
     if loss_handler is not None:
@@ -1589,8 +1648,8 @@ def run(args):
                     on_unused_input='warn', 
                     allow_input_downcast=True,
                     )
-        print 'num_batchsize',num_batchsize
-        inference(num_batchsize,args.inference_db)
+        logging.info('num_batchsize=%d'%num_batchsize)
+        inference(num_batchsize,args.inference_db,mean_data)
 #        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
 #            out = inference_fn(*sorted_values(batch))
 #            if inference_handler is not None:
@@ -1643,7 +1702,9 @@ def run(args):
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
 
             if lrpolicy is not None:
-                lr.set_value(lrpolicy.get_learning_rate(epoch-epoch_begin))
+                lrval=lrpolicy.get_learning_rate(epoch-epoch_begin)
+                lr.set_value(lrval)
+                logging.info('set lr to %f'%lrval)
 
             easyshared.update()
 
@@ -1671,6 +1732,13 @@ def run(args):
                         except StopIteration:
                             stop=True
                             break
+
+                        if type(batch)==tuple:
+                            ids,batch=batch
+
+                        if mean_data is not None:
+                            assert 'mean' not in batch
+                            batch['mean']=mean_data
 
                         if data_shaker is not None:
                             batch = data_shaker(batch)
@@ -1710,21 +1778,45 @@ def run(args):
                                                       args.lr_stepvalues)
                     print '' 
                     # Then we print the results for this epoch:
-                    if not stop:
-                        print "Epoch {}:{} of {} took {:.3f}s".format(
-                            epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time) 
-                    else:
-                        print "Training {} of {} took {:.3f}s".format(
-                            epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
                     avg_train_err = train_err / train_batches
                     avg_penalty = train_penalty / train_batches
-                    #print "  training loss:\t\t{:.6f}".format(avg_train_err)
-                    print ' ','training loss',':',avg_train_err
-                    print ' ','training penalty',':',avg_penalty
-                    tmp = map(lambda x:x/train_batches,train_errlist)
-                    for tag,sli in tagslice:
-                        if len(tmp[sli])>0:
-                            print ' ',tag,':',tmp[sli]
+                    if not stop:
+                        logging.info("Epoch {}:{} of {} took {:.3f}s".format(
+                            epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time))
+                        #print "  training loss:\t\t{:.6f}".format(avg_train_err)
+                        out=StringIO()
+                        print >>out,' ','training loss',':',avg_train_err
+                        logging.info(string.strip(out.getvalue()))
+                        out=StringIO()
+                        print >>out,' ','training penalty',':',avg_penalty
+                        logging.info(string.strip(out.getvalue()))
+                        tmp = map(lambda x:x/train_batches,train_errlist)
+                        for tag,sli in tagslice:
+                            if len(tmp[sli])>0:
+                                if tag.startswith('train:'):
+                                    tag=tag[len('train:'):]
+                                out=StringIO()
+                                print >>out,' ',tag,':',tmp[sli]
+                                logging.info(string.strip(out.getvalue()))
+                    else:
+                        #logging.info("Training {} of {} took {:.3f}s".format(
+                        #    epoch + 1, epoch_begin+num_epochs, time.time() - start_time))
+                        out=StringIO()
+                        print >>out,'training_loss','=',avg_train_err,','
+                        print >>out,'training_penalty','=',avg_penalty,','
+                        print >>out,'lr','=',lr.get_value(),','
+                        tmp = map(lambda x:x/train_batches,train_errlist)
+                        for tag,sli in tagslice:
+                            if len(tmp[sli])>0:
+                                if tag.startswith('train:'):
+                                    tag=tag[len('train:'):]
+                                if len(tmp[sli])==1:
+                                    print >>out,tag,'=',tmp[sli],','
+                                else:
+                                    for i,val in enumerate(tmp[sli]):
+                                        print >>out,tag+'_'+str(i),'=',val,','
+
+                        logging.info("Training (epoch " + str(epoch+1) + "): " + string.replace(out.getvalue(),'\n',' '))
 
                     #vals = []
                     #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
@@ -1759,7 +1851,15 @@ def run(args):
                     except StopIteration:
                         stop=True
                         break
+                    if type(batch)==tuple:
+                        ids,batch=batch
 
+                    if mean_data is not None:
+                        assert 'mean' not in batch
+                        batch['mean']=mean_data
+
+                    for t in batch:
+                        print t,batch[t].shape
 
                     res=val_fn(*sorted_values(batch))
                     err=res[0]
@@ -1783,19 +1883,38 @@ def run(args):
 
                 print '' 
                 # Then we print the results for this epoch:
-                if not stop:
-                    print "Validation {}:{} of {} took {:.3f}s".format(
-                        epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time) 
-                else:
-                    print "Validation {} of {} took {:.3f}s".format(
-                        epoch + 1, epoch_begin+num_epochs, time.time() - start_time) 
                 avg_val_err = val_err / val_batches
-                #print "  validation loss:\t\t{:.6f}".format(avg_val_err)
-                print ' ','validation loss',':',avg_val_err
-                tmp = map(lambda x:x/val_batches,val_errlist)
-                for tag,sli in valtagslice:
-                    if len(tmp[sli])>0:
-                        print ' ',tag,':',tmp[sli]
+                if not stop:
+                    logging.info("Epoch {}:{} of {} took {:.3f}s".format(
+                        epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time))
+                    #print "  validation loss:\t\t{:.6f}".format(avg_val_err)
+                    out=StringIO()
+                    print >>out,' ','validation loss',':',avg_val_err
+                    logging.info(string.strip(out.getvalue()))
+                    tmp = map(lambda x:x/val_batches,val_errlist)
+                    for tag,sli in valtagslice:
+                        if len(tmp[sli])>0:
+                            if tag.startswith('val:'):
+                                tag=tag[len('val:'):]
+                            out=StringIO()
+                            print >>out, ' ',tag,':',tmp[sli]
+                            logging.info(string.strip(out.getvalue()))
+                else:
+                    #logging.info("Validation {} of {} took {:.3f}s".format(
+                    #    epoch + 1, epoch_begin+num_epochs, time.time() - start_time))
+                    out=StringIO()
+                    print >>out,'validation loss','=',avg_val_err,','
+                    tmp = map(lambda x:x/val_batches,val_errlist)
+                    for tag,sli in valtagslice:
+                        if len(tmp[sli])>0:
+                            if tag.startswith('val:'):
+                                tag=tag[len('val:'):]
+                            if len(tmp[sli])==1:
+                                print >>out,tag,'=',tmp[sli],','
+                            else:
+                                for i,val in enumerate(tmp[sli]):
+                                    print >>out,tag+'_'+str(i),'=',val,','
+                    logging.info("Validation (epoch " + str(epoch+1) + "): " + string.replace(out.getvalue(),'\n',' '))
 
                 #vals = []
                 #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
@@ -1811,20 +1930,22 @@ def run(args):
 
             save_params(epoch+1,[
                 sorted_values(networks) for networks in all_networks
-                ],[],os.path.join(args.save,args.snapshotPrefix),deletelayers=[])
+                ],[],prefix,deletelayers=[])
             if mode=='training':
                 if train_err / train_batches < min_loss:
                     min_loss = train_err / train_batches
-                    print 'New low training loss',':',min_loss
+                    logging.info('New low training loss : %f'%min_loss)
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
-                print 'New low validation loss',':',min_valloss
+                logging.info('New low validation loss : %f'%min_valloss)
             if mode=='training':
                 if args.snapshotInterval>0:
                     if (epoch+1)%max(1,int(args.snapshotInterval))==0:
+                        logging.info('Snapshotting to %s'%(prefix+'epoch'+str(epoch+1)))
                         save_params(epoch+1,[
                             sorted_values(networks) for networks in all_networks
-                            ],[],os.path.join(args.save,args.snapshotPrefix+'epoch'+str(epoch+1)+'-'),deletelayers=[])
+                            ],[],prefix+'epoch'+str(epoch+1)+'-',deletelayers=[])
+                        logging.info('Snapshot saved')
             if mode=='training':
                 for h in on_epoch_finished:
                     h(locals())
@@ -1866,15 +1987,16 @@ class ArgumentParser(argparse.ArgumentParser):
         define_string('inference_db', '', """Directory with inference file source""")
         define_integer(
             'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
-        #define_string('labels_list', '', """Text file listing label definitions""")
+        define_string('labels_list', '', """Text file listing label definitions""")
         define_string('mean', '', """Mean image file""")
         define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
-        #define_string('network', '', """File containing network (model)""")
-        #define_string('networkDirectory', '', """Directory in which network exists""")
+        define_float('grads_clip', '1.0', """Gradients clip""")  # Not used by DIGITS front-end
+        define_string('network', '', """File containing network (model)""")
+        define_string('networkDirectory', '', """Directory in which network exists""")
         define_string('optimization', 'sgd', """Optimization method""")
         define_string('save', 'results', """Save directory""")
-        #define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
-        #define_boolean('shuffle', False, """Shuffle records before training""")
+        define_integer('seed', 0, """Fixed input seed for repeatable experiments""")
+        define_boolean('shuffle', False, """Shuffle records before training""") #ignored
         define_float(
             'snapshotInterval', 1.0,
             """Specifies the training epochs to be completed before taking a snapshot""")
@@ -1951,18 +2073,7 @@ class ArgumentParser(argparse.ArgumentParser):
 args = None
 def main():
     global args
-#    parser = argparse.ArgumentParser(description='Trains a neural network to handle 3d scene transforming on actions.')
-#    parser.add_argument('mode',metavar='MODE',help="'training/inference'")
-#    parser.add_argument('num_epochs',metavar='EPOCHS',type=int,help="number of training epochs to perform")
-#    parser.add_argument('num_batchsize',metavar='BATCHSIZE',type=int,help="batchsize")
-#    parser.add_argument('learning_rate',metavar='LEARNING_RATE',type=float,help="learning rate")
-#    parser.add_argument('accumulation',metavar='ACCUMULATION',type=int,help="batch accumulation")
-
     parser = ArgumentParser()
-
     args = parser.parse_args()
-
     run(args)
-    #quit_flag=True
-    #time.sleep(5)
 
