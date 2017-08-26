@@ -32,9 +32,11 @@ def deep_eval(a, m):
         if type(a) == tuple and len(a) and callable(a[0]):
             # (type(a[0])==type(lambda:0) or type(a[0])==type):
             # print 'de:','callable'
+            #print type(a[-1])
             if type(a[-1]) != dict:
                 a += ({},)
-            args = [(m[x] if type(x) != list and x in m else deep_eval(x, m))
+            #print a
+            args = [(m[x] if type(x) != list and type(x) != tuple  and x in m else deep_eval(x, m))
                     for x in a[1:-1]]
             kwargs = a[-1]
             for k in kwargs:
