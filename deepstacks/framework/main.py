@@ -1268,6 +1268,8 @@ try:
     import caffe
     from caffe.proto import caffe_pb2
     def load_mean_file(mean_file):
+        if mean_file.endswith('.npy'):
+            return np.load(mean_file)
         with open(mean_file, 'rb') as infile:
             blob = caffe_pb2.BlobProto()
             blob.MergeFromString(infile.read())
