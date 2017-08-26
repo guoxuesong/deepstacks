@@ -9,7 +9,7 @@ from deepstacks.macros import *
 from deepstacks.framework.macros import *
 from deepstacks.lasagne import curr_layer,curr_stacks,curr_flags,curr_model,curr_batchsize
 
-from deepstacks.util.curry import curry
+from deepstacks.utils.curry import curry
 
 
 def build_cnn(inputs):
