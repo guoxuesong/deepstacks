@@ -1287,7 +1287,7 @@ try:
             mean=np.reshape(blob.data, blob_dims[1:])
             #mean=mean[:,(256-224)//2:(256-224)//2+224,(256-224)//2:(256-224)//2+224]
         return mean
-except:
+except ImportError:
     def load_mean_file(mean_file):
         assert mean_file.endswith('.npy')
         return np.load(mean_file)
@@ -1715,6 +1715,9 @@ def run(args):
         min_valloss=float('inf')
         # We iterate over epochs:
         for epoch in range(epoch_begin,epoch_begin+num_epochs):
+            saveepoch=epoch+1
+            if args.snapshotFromZero:
+                saveepoch-=epoch_begin
 
             if lrpolicy is not None:
                 lrval=lrpolicy.get_learning_rate(epoch-epoch_begin)
@@ -1784,7 +1787,7 @@ def run(args):
                             break
 
                     if lrpolicy is None:
-                        total_training_steps = num_epochs*train_batches
+                        total_training_steps = num_epochs
                         lrpolicy = lr_policy.LRPolicy(args.lr_policy,
                                                       args.lr_base_rate,
                                                       args.lr_gamma,
@@ -1826,12 +1829,12 @@ def run(args):
                                 if tag.startswith('train:'):
                                     tag=tag[len('train:'):]
                                 if len(tmp[sli])==1:
-                                    print >>out,tag,'=',tmp[sli],','
+                                    print >>out,tag,'=',tmp[sli][0],','
                                 else:
                                     for i,val in enumerate(tmp[sli]):
                                         print >>out,tag+'_'+str(i),'=',val,','
 
-                        logging.info("Training (epoch " + str(epoch+1) + "): " + string.replace(out.getvalue(),'\n',' '))
+                        logging.info("Training (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
 
                     #vals = []
                     #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
@@ -1842,7 +1845,7 @@ def run(args):
                         break
                     loopcount+=1
 
-                if (epoch+1)%args.validation_interval!=0:
+                if (saveepoch)%args.validation_interval!=0:
                     continue
 
             # And a full pass over the validation data:
@@ -1873,8 +1876,8 @@ def run(args):
                         assert 'mean' not in batch
                         batch['mean']=mean_data
 
-                    for t in batch:
-                        print t,batch[t].shape
+                    #for t in batch:
+                    #    print t,batch[t].shape
 
                     res=val_fn(*sorted_values(batch))
                     err=res[0]
@@ -1925,11 +1928,11 @@ def run(args):
                             if tag.startswith('val:'):
                                 tag=tag[len('val:'):]
                             if len(tmp[sli])==1:
-                                print >>out,tag,'=',tmp[sli],','
+                                print >>out,tag,'=',tmp[sli][0],','
                             else:
                                 for i,val in enumerate(tmp[sli]):
                                     print >>out,tag+'_'+str(i),'=',val,','
-                    logging.info("Validation (epoch " + str(epoch+1) + "): " + string.replace(out.getvalue(),'\n',' '))
+                    logging.info("Validation (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
 
                 #vals = []
                 #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
@@ -1955,11 +1958,8 @@ def run(args):
                 logging.info('New low validation loss : %f'%min_valloss)
             if mode=='training':
                 if args.snapshotInterval>0:
-                    if (epoch+1)%max(1,int(args.snapshotInterval))==0:
+                    if (saveepoch)%max(1,int(args.snapshotInterval))==0:
                         logging.info('Snapshotting to %s'%(prefix+'epoch'+str(epoch+1)))
-                        saveepoch=epoch+1
-                        if args.snapshotFromOne:
-                            saveepoch-=epoch_begin
                         save_params(epoch+1,[
                             sorted_values(networks) for networks in all_networks
                             ],[],prefix+'epoch'+str(saveepoch)+'-',deletelayers=[])
@@ -2020,7 +2020,7 @@ class ArgumentParser(argparse.ArgumentParser):
             'snapshotInterval', 1.0,
             """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
-        define_boolean('snapshotFromOne', False, """snapshoting from epoch one""")
+        define_boolean('snapshotFromZero', False, """snapshoting from epoch zero""")
         define_string(
             'subtractMean', 'none',
             """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
