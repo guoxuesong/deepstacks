@@ -1297,13 +1297,22 @@ class DefaultNetworkBuilder(object):
         self.modelfile=modelfile
         m={}
         exec(open(modelfile).read(), m)
-        self.network=m['network']
+        if 'network' in m:
+            self.network=m['network']
+            self.build_network=None
+        elif 'build_network' in m:
+            self.network=None
+            self.build_network=m['build_network']
     def __call__(self,inputs):
         network=inputs['image']
         if 'mean' in inputs:
             network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
         y=inputs['target']
-        return deepstacks.lasagne.build_network(network, self.network ,{ 'y':y })
+        if self.network is not None:
+            return deepstacks.lasagne.build_network(network, self.network ,{ 'y':y })
+        elif self.build_network is not None:
+            network,errors,watchpoints=self.build_network(network,y)
+            return network,{'output':network},[network],errors,watchpoints
 
 
 lrpolicy = None
@@ -1949,9 +1958,12 @@ def run(args):
                 if args.snapshotInterval>0:
                     if (epoch+1)%max(1,int(args.snapshotInterval))==0:
                         logging.info('Snapshotting to %s'%(prefix+'epoch'+str(epoch+1)))
+                        saveepoch=epoch+1
+                        if args.snapshotFromOne:
+                            saveepoch-=epoch_begin
                         save_params(epoch+1,[
                             sorted_values(networks) for networks in all_networks
-                            ],[],prefix+'epoch'+str(epoch+1)+'-',deletelayers=[])
+                            ],[],prefix+'epoch'+str(saveepoch)+'-',deletelayers=[])
                         logging.info('Snapshot saved')
             if mode=='training':
                 for h in on_epoch_finished:
@@ -2009,6 +2021,7 @@ class ArgumentParser(argparse.ArgumentParser):
             'snapshotInterval', 1.0,
             """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
+        define_boolean('snapshotFromOne', False, """snapshoting from epoch one""")
         define_string(
             'subtractMean', 'none',
             """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
