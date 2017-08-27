@@ -1304,15 +1304,14 @@ class DefaultNetworkBuilder(object):
             self.network=None
             self.build_network=m['build_network']
     def __call__(self,inputs):
-        network=inputs['image']
-        if 'mean' in inputs:
-            network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
-        y=inputs['target']
         if self.network is not None:
-            return deepstacks.lasagne.build_network(network, self.network ,{ 'y':y })
+            network=inputs['image']
+            if 'mean' in inputs:
+                network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
+                inputs.pop('mean')
+            return deepstacks.lasagne.build_network(network, self.network, inputs)
         elif self.build_network is not None:
-            network,errors,watchpoints=self.build_network(network,y)
-            return network,{'output':network},[network],errors,watchpoints
+            return self.build_network(inputs)
 
 
 lrpolicy = None
