@@ -1006,7 +1006,7 @@ def make_nolearn_scores(losslist,tagslice):
 #    global src,norms,predictsloop,predictsloop2,predictsloop3
 #    predict_fn,visual_fn=predict_fns
 #    if visualize_validation_set:
-#        iterate_fn=net.batch_iterator_test
+#        iterate_fn=net.batch_iterator_val
 #    else:
 #        iterate_fn=net.batch_iterator_train
 #    src=None
@@ -1177,15 +1177,12 @@ def make_nolearn_scores(losslist,tagslice):
 #    visual_varnames+=[name]
 
 batch_iterator_train=None
+batch_iterator_val=None
 batch_iterator_test=None
 batch_iterator_inference=None
-def register_batch_iterator(train,test,inference=None):
-    global batch_iterator_train,batch_iterator_test,batch_iterator_inference
-    batch_iterator_train,batch_iterator_test,batch_iterator_inference=train,test,inference
-#def wrap_batch_iterator_train(num_batchsize,igx,igy):
-#    return batch_iterator_train(num_batchsize)
-#def wrap_batch_iterator_test(num_batchsize,igx,igy):
-#    return batch_iterator_test(num_batchsize)
+def register_batch_iterator(train,val,test=None,inference=None):
+    global batch_iterator_train,batch_iterator_val,batch_iterator_test,batch_iterator_inference
+    batch_iterator_train,batch_iterator_val,batch_iterator_test,batch_iterator_inference=train,val,test,inference
 
 def layers(l):
     return macros(l)
@@ -1230,17 +1227,19 @@ def register_validation_callbacks(vs,vf):
     on_validation_started+=vs
     on_validation_finished+=vf
 
-data_shaker=None
+training_data_shaker=None
+validation_data_shaker=None
 
-def register_data_shaker(f):
-    global data_shaker
-    data_shaker=f
+def register_data_shaker(train,val=None):
+    global training_data_shaker,validation_data_shaker
+    training_data_shaker=train
+    validation_data_shaker=val
 
 train_fn = None
 val_fn = None
 inference_fn = None
 
-def inference(num_batchsize,inference_db,mean_data=None):
+def inference(num_batchsize,inference_db,mean_data=None,visualize_inf=False):
     count=0
     for batch in batch_iterator_inference(num_batchsize,inference_db):
         if type(batch)==tuple:
@@ -1256,6 +1255,17 @@ def inference(num_batchsize,inference_db,mean_data=None):
         out = inference_fn(*sorted_values(batch))
         if inference_handler is not None:
             inference_handler(out[0],ids)
+#    if visualize_inf:
+#        trainable_weights=lasagne.layers.get_all_params(layers,trainable=True)
+#        a=lasagne.layers.get_all_layers(layers)
+#        for layer_id,layer in enumerate(a):
+#            for tw in trainable_weights:
+#                if tw in l.get_params():
+#                    op=layer.name or 'layer_'+str(layer_id)
+#                    var=tw.name
+#                    activations=lasagne.layers.get_output(layer)
+#                    weights=
+
     return out[0]
 
 loss_handler=None
@@ -1315,10 +1325,12 @@ class DefaultNetworkBuilder(object):
 
 
 lrpolicy = None
+layers = None
 def run(args):
     global lrpolicy
     global train_fn,val_fn,inference_fn
     global network_builder
+    global layers
     if args.train_db != '':
         mode='training'
     elif args.validation_db != '':
@@ -1340,6 +1352,8 @@ def run(args):
     if args.network!='':
         network_builder=DefaultNetworkBuilder(os.path.join(os.path.dirname(os.path.realpath(__file__)),args.networkDirectory,args.network))
 
+    num_batches=0
+
     num_epochs=args.epoch
     num_batchsize=args.batch_size
     learning_rate=args.lr_base_rate
@@ -1347,6 +1361,13 @@ def run(args):
     grads_clip=args.grads_clip
     accumulation=args.accumulation
 
+    total_training_steps = num_epochs
+    lrpolicy = lr_policy.LRPolicy(args.lr_policy,
+                                  args.lr_base_rate,
+                                  args.lr_gamma,
+                                  args.lr_power,
+                                  total_training_steps,
+                                  args.lr_stepvalues)
 #    if batch_iterator_train is None:
 #        loader=load_200
 #        iterate_minibatches=iterate_minibatches_200
@@ -1361,7 +1382,7 @@ def run(args):
     if mode == 'training':
         it=batch_iterator_train(num_batchsize,args.train_db)
     elif mode == 'validation':
-        it=batch_iterator_test(num_batchsize,args.validation_db)
+        it=batch_iterator_val(num_batchsize,args.validation_db)
     elif mode == 'inference':
         it=batch_iterator_inference(num_batchsize,args.inference_db)
 
@@ -1618,7 +1639,7 @@ def run(args):
 #                verbose=0,
 #                regression=not is_classify,
 #                batch_iterator_train=curry(wrap_batch_iterator_train,num_batchsize),
-#                batch_iterator_test=curry(wrap_batch_iterator_test,num_batchsize),
+#                batch_iterator_val=curry(wrap_batch_iterator_val,num_batchsize),
 #                check_input=False,
 #                on_batch_finished=[
 #                    #curry(mybatchok,num_batchsize,sigma_base,sigma_var)
@@ -1664,7 +1685,7 @@ def run(args):
                     allow_input_downcast=True,
                     )
         logging.info('num_batchsize=%d'%num_batchsize)
-        inference(num_batchsize,args.inference_db,mean_data)
+        inference(num_batchsize,args.inference_db,mean_data=mean_data,visualize_inf=args.visualize_inf)
 #        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
 #            out = inference_fn(*sorted_values(batch))
 #            if inference_handler is not None:
@@ -1741,6 +1762,10 @@ def run(args):
                 train_it=batch_iterator_train(num_batchsize,args.train_db)
 
                 train_len = 80
+                if num_batches > 0:
+                    n=num_batches//80
+                    train_len=(num_batches+n-1)//n
+
                 err=None
                 while True:
                     stop=False
@@ -1758,8 +1783,8 @@ def run(args):
                             assert 'mean' not in batch
                             batch['mean']=mean_data
 
-                        if data_shaker is not None:
-                            batch = data_shaker(batch)
+                        if training_data_shaker is not None:
+                            batch = training_data_shaker(batch)
 
                         res=train_fn(*sorted_values(batch))
                         err=res[0]
@@ -1786,19 +1811,11 @@ def run(args):
                             break_flag = True
                             break
 
-                    if lrpolicy is None:
-                        total_training_steps = num_epochs
-                        lrpolicy = lr_policy.LRPolicy(args.lr_policy,
-                                                      args.lr_base_rate,
-                                                      args.lr_gamma,
-                                                      args.lr_power,
-                                                      total_training_steps,
-                                                      args.lr_stepvalues)
                     print '' 
                     # Then we print the results for this epoch:
                     avg_train_err = train_err / train_batches
                     avg_penalty = train_penalty / train_batches
-                    if not stop:
+                    if not args.digits:
                         logging.info("Epoch {}:{} of {} took {:.3f}s".format(
                             epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time))
                         #print "  training loss:\t\t{:.6f}".format(avg_train_err)
@@ -1816,12 +1833,12 @@ def run(args):
                                 out=StringIO()
                                 print >>out,' ',tag,':',tmp[sli]
                                 logging.info(string.strip(out.getvalue()))
-                    else:
+                    elif num_batches>0 and i>0 or num_batches==0 and stop:
                         #logging.info("Training {} of {} took {:.3f}s".format(
                         #    epoch + 1, epoch_begin+num_epochs, time.time() - start_time))
                         out=StringIO()
-                        print >>out,'training_loss','=',avg_train_err,','
-                        print >>out,'training_penalty','=',avg_penalty,','
+                        print >>out,'loss','=',avg_train_err,','
+                        print >>out,'penalty','=',avg_penalty,','
                         print >>out,'lr','=',lr.get_value(),','
                         tmp = map(lambda x:x/train_batches,train_errlist)
                         for tag,sli in tagslice:
@@ -1834,7 +1851,22 @@ def run(args):
                                     for i,val in enumerate(tmp[sli]):
                                         print >>out,tag+'_'+str(i),'=',val,','
 
-                        logging.info("Training (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
+                        if num_batches>0:
+                            logging.info("Training (epoch " + str(saveepoch-1+1.0*train_batches/num_batches) + "): " + string.replace(out.getvalue(),'\n',' '))
+                        else:
+                            logging.info("Training (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
+
+                    if stop:
+                        if num_batches==0:
+                            num_batches=train_batches
+#                        if lrpolicy is None:
+#                            total_training_steps = num_epochs
+#                            lrpolicy = lr_policy.LRPolicy(args.lr_policy,
+#                                                          args.lr_base_rate,
+#                                                          args.lr_gamma,
+#                                                          args.lr_power,
+#                                                          total_training_steps,
+#                                                          args.lr_stepvalues)
 
                     #vals = []
                     #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
@@ -1849,100 +1881,118 @@ def run(args):
                     continue
 
             # And a full pass over the validation data:
-            val_err = 0
-            val_errlist = None
-            val_batches = 0
-            start_time = time.time()
-            count = 0
-            loopcount = 0
-            val_it=batch_iterator_test(num_batchsize,args.validation_db)
-
-            for h in on_validation_started:
-                h(locals())
-            val_len = 80
-            err=None
-            while True:
-                stop=False
-                for i in range(val_len):
-                    try:
-                        batch = next(val_it)
-                    except StopIteration:
-                        stop=True
-                        break
-                    if type(batch)==tuple:
-                        ids,batch=batch
-
-                    if mean_data is not None:
-                        assert 'mean' not in batch
-                        batch['mean']=mean_data
-
-                    #for t in batch:
-                    #    print t,batch[t].shape
-
-                    res=val_fn(*sorted_values(batch))
-                    err=res[0]
-                    errlist=res[1:]
-                    val_err += err
-                    if val_errlist is None:
-                        val_errlist=errlist
-                    else:
-                        for j in range(len(errlist)):
-                            val_errlist[j]=val_errlist[j]+errlist[j]
-
-                    val_batches += 1
-                    count = count+1
-
-                    sys.stdout.write("o")
-
-                    #show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,num_actions,i)
-                    if 0xFF & cv2.waitKey(100) == 27:
-                        break_flag = True
-                        break
-
-                print '' 
-                # Then we print the results for this epoch:
-                avg_val_err = val_err / val_batches
-                if not stop:
-                    logging.info("Epoch {}:{} of {} took {:.3f}s".format(
-                        epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time))
-                    #print "  validation loss:\t\t{:.6f}".format(avg_val_err)
-                    out=StringIO()
-                    print >>out,' ','validation loss',':',avg_val_err
-                    logging.info(string.strip(out.getvalue()))
-                    tmp = map(lambda x:x/val_batches,val_errlist)
-                    for tag,sli in valtagslice:
-                        if len(tmp[sli])>0:
-                            if tag.startswith('val:'):
-                                tag=tag[len('val:'):]
-                            out=StringIO()
-                            print >>out, ' ',tag,':',tmp[sli]
-                            logging.info(string.strip(out.getvalue()))
+            val_result=[]
+            for batch_iterator,db,stage in (
+                    (batch_iterator_val,args.validation_db,'val'),
+                    (batch_iterator_test,args.test_db,'test')):
+                val_err = 0
+                val_errlist = None
+                val_batches = 0
+                start_time = time.time()
+                count = 0
+                loopcount = 0
+                if batch_iterator is not None:
+                    pass
                 else:
-                    #logging.info("Validation {} of {} took {:.3f}s".format(
-                    #    epoch + 1, epoch_begin+num_epochs, time.time() - start_time))
-                    out=StringIO()
-                    print >>out,'validation loss','=',avg_val_err,','
-                    tmp = map(lambda x:x/val_batches,val_errlist)
-                    for tag,sli in valtagslice:
-                        if len(tmp[sli])>0:
-                            if tag.startswith('val:'):
-                                tag=tag[len('val:'):]
-                            if len(tmp[sli])==1:
-                                print >>out,tag,'=',tmp[sli][0],','
-                            else:
-                                for i,val in enumerate(tmp[sli]):
-                                    print >>out,tag+'_'+str(i),'=',val,','
-                    logging.info("Validation (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
+                    val_result+=[[ stage, val_err, val_errlist, val_batches, start_time, count, loopcount]]
+                    continue
+                    
+                val_it=batch_iterator(num_batchsize,db)
 
-                #vals = []
-                #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
-                #    val = abs(t.get_value()).max()
-                #    vals += [val]
-                #print 'max |w|:',max(vals)
-                if stop:
-                    break
-                loopcount+=1
+                for h in on_validation_started:
+                    h(locals())
+                val_len = 80
+                err=None
+                while True:
+                    stop=False
+                    for i in range(val_len):
+                        try:
+                            batch = next(val_it)
+                        except StopIteration:
+                            stop=True
+                            break
+                        if type(batch)==tuple:
+                            ids,batch=batch
 
+                        if mean_data is not None:
+                            assert 'mean' not in batch
+                            batch['mean']=mean_data
+
+                        if stage=='val':
+                            if validation_data_shaker is not None:
+                                batch = validation_data_shaker(batch)
+
+                        #for t in batch:
+                        #    print t,batch[t].shape
+
+                        res=val_fn(*sorted_values(batch))
+                        err=res[0]
+                        errlist=res[1:]
+                        val_err += err
+                        if val_errlist is None:
+                            val_errlist=errlist
+                        else:
+                            for j in range(len(errlist)):
+                                val_errlist[j]=val_errlist[j]+errlist[j]
+
+                        val_batches += 1
+                        count = count+1
+
+                        sys.stdout.write("o")
+
+                        #show(src,norms,predictsloop,predictsloop2,predictsloop3,num_batchsize,num_actions,i)
+                        if 0xFF & cv2.waitKey(100) == 27:
+                            break_flag = True
+                            break
+
+                    print '' 
+
+                    #vals = []
+                    #for t in lasagne.layers.get_all_params(networks1.values(),regularizable=True):
+                    #    val = abs(t.get_value()).max()
+                    #    vals += [val]
+                    #print 'max |w|:',max(vals)
+                    if stop:
+                        break
+                    loopcount+=1
+                val_result+=[[ stage, val_err, val_errlist, val_batches, start_time, count, loopcount]]
+
+            # Then we print the results for this epoch:
+            if not args.digits:
+                for stage, val_err, val_errlist, val_batches, start_time, count, loopcount in val_result:
+                    if count>0:
+                        avg_val_err = val_err / val_batches
+                        logging.info("Epoch {}:{} of {} took {:.3f}s".format(
+                            epoch + 1, loopcount+1, epoch_begin+num_epochs, time.time() - start_time))
+                        #print "  validation loss:\t\t{:.6f}".format(avg_val_err)
+                        out=StringIO()
+                        print >>out,' ',stage+' loss',':',avg_val_err
+                        logging.info(string.strip(out.getvalue()))
+                        tmp = map(lambda x:x/val_batches,val_errlist)
+                        for tag,sli in valtagslice:
+                            if len(tmp[sli])>0:
+                                if tag.startswith('val:'):
+                                    tag=tag[len('val:'):]
+                                out=StringIO()
+                                print >>out, ' ',tag,':',tmp[sli]
+                                logging.info(string.strip(out.getvalue()))
+            else:
+                out=StringIO()
+                for stage, val_err, val_errlist, val_batches, start_time, count, loopcount in val_result:
+                    if count>0:
+                        avg_val_err = val_err / val_batches
+                        print >>out,stage+'_loss','=',avg_val_err,','
+                        tmp = map(lambda x:x/val_batches,val_errlist)
+                        for tag,sli in valtagslice:
+                            if len(tmp[sli])>0:
+                                if tag.startswith('val:'):
+                                    tag=tag[len('val:'):]
+                                if len(tmp[sli])==1:
+                                    print >>out,stage+'_'+tag,'=',tmp[sli][0],','
+                                else:
+                                    for i,val in enumerate(tmp[sli]):
+                                        print >>out,stage+'_'+tag+'_'+str(i),'=',val,','
+                logging.info("Validation (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
             for h in on_validation_finished:
                 h(locals())
 
@@ -2021,6 +2071,7 @@ class ArgumentParser(argparse.ArgumentParser):
             """Specifies the training epochs to be completed before taking a snapshot""")
         define_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
         define_boolean('snapshotFromZero', False, """snapshoting from epoch zero""")
+        define_boolean('digits', False, """format output for digits""")
         define_string(
             'subtractMean', 'none',
             """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
@@ -2029,13 +2080,14 @@ class ArgumentParser(argparse.ArgumentParser):
         #    'train_labels', '',
         #    """Directory with an optional and seperate labels file source for training""")
         define_string('validation_db', '', """Directory with validation file source""")
+        define_string('test_db', '', """Directory with test file source""")
         #define_string(
         #    'validation_labels', '',
         #    """Directory with an optional and seperate labels file source for validation""")
         #define_string(
         #    'visualizeModelPath', '', """Constructs the current model for visualization""")
-        #define_boolean(
-        #    'visualize_inf', False, """Will output weights and activations for an inference job.""")
+        define_boolean(
+            'visualize_inf', False, """Will output weights and activations for an inference job.""")
         define_string(
             'weights', '', """Filename for weights of a model to use for fine-tuning""")
 
