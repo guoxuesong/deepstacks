@@ -19,22 +19,23 @@ class AsyncIterate:
     def __call__(self,*args,**kwargs):
         assert self.instance is None
         self.instance=self.it(*args,**kwargs)
-        thread.start_new_thread(self.backend,())
-        data=self.q.get()
-        while data is not None:
-            try:
-                yield data
-            except GeneratorExit:
-                #print 'GeneratorExit'
-                self.quitflag=True
-                #self.instance.close()
-                while self.q.get() is not None:
-                    pass
-                break
+        if self.instance is not None:
+            thread.start_new_thread(self.backend,())
             data=self.q.get()
-        #print 'end'
-        self.instance=None
-        self.quitflag=False
+            while data is not None:
+                try:
+                    yield data
+                except GeneratorExit:
+                    #print 'GeneratorExit'
+                    self.quitflag=True
+                    #self.instance.close()
+                    while self.q.get() is not None:
+                        pass
+                    break
+                data=self.q.get()
+            #print 'end'
+            self.instance=None
+            self.quitflag=False
     
     def backend(self):
         try:
