@@ -2003,6 +2003,7 @@ def run(args):
                 if train_err / train_batches < min_loss:
                     min_loss = train_err / train_batches
                     logging.info('New low training loss : %f'%min_loss)
+            stage, val_err, val_errlist, val_batches, start_time, count, loopcount = val_result[0]
             if val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
                 logging.info('New low validation loss : %f'%min_valloss)
