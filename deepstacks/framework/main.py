@@ -45,6 +45,7 @@ from ..utils import lr_policy
 
 import lasagne
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+from theano.compile.nanguardmode import NanGuardMode
 import thread
 import cv2
 #import matplotlib.pyplot as plt
@@ -163,7 +164,7 @@ def set_param_value(params,values,ignore_mismatch=False):#{{{
                 else:
                     for i in range(len(pshape)):
                         if pshape[i]<vshape[i]:
-                            logging.error("mismatch: parameter has shape %r but value to set has shape %r" % (pshape, vshape))
+                            logging.warning("mismatch: parameter has shape %r but value to set has shape %r" % (pshape, vshape))
                             res+=[p]
                             setvalue=False
                             break
@@ -1343,7 +1344,7 @@ def run(args):
     logging.info(mode)
 
     if args.verbose:
-        deepstacks.set_verbose(verbose)
+        deepstacks.set_verbose(args.verbose)
 
     if args.seed:
         random.random.seed(args.seed)
@@ -1718,6 +1719,7 @@ def run(args):
                         updates=updates, 
                         on_unused_input='warn', 
                         allow_input_downcast=True,
+                        mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True) if args.nan_guard else None
                         )
 
         if val_fn is None:
@@ -2111,6 +2113,8 @@ class ArgumentParser(argparse.ArgumentParser):
             """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
             For the 'multistep' lr_policy you can input multiple values seperated by commas""")
 
+        define_boolean(
+            'nan_guard', False, """Enable NanGuardMode of theano.""")
         ## Tensorflow-unique arguments for DIGITS
         #define_string(
         #    'save_vars', 'all',
