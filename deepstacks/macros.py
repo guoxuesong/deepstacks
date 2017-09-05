@@ -264,11 +264,12 @@ def linear(l):
         a = l[i]
         m = a[-1].copy()
         if not found:
-            assert a[0]==0
             if a[1]>0:
                 m['linear']=True
                 a = a[:-1]+(m,)
                 found = True
+            else:
+                assert a[0]==0
         res = res+(a,)
     res = res[::-1]
     return res
@@ -279,3 +280,10 @@ def resnet(l):
         (linear,l),
         (('_restmp',0),0,0,0,0,0,{'add':True,'relu':True}),
         ))
+
+def merge(inputs,*args):
+    res=()
+    for layer in inputs:
+        res+=linear(((layer,)+args,))
+    res+=( (tuple(range(len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
+    return res
