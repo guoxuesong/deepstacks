@@ -71,7 +71,7 @@ def get_or_compute_grads(loss_or_grads, params):
                              (len(loss_or_grads), len(params)))
         return loss_or_grads
     else:
-        return theano.grad(loss_or_grads, params,disconnected_inputs='warn')
+        return theano.grad(loss_or_grads, params, disconnected_inputs='warn')
 
 
 def sgd(loss_or_grads, params, learning_rate, grads_clip=False):
