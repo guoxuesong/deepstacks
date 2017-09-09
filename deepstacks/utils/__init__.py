@@ -8,6 +8,13 @@ import numpy as np
 def floatX(val):
     return vars(np)[theano.config.floatX](val)
 
+def create_binary(a,n):
+    res = np.zeros((len(a),n),dtype=theano.config.floatX)
+    for i in range(n):
+        res[:,i]=a%2
+        a=a>>1
+    return res
+
 class Keeper(object):
     def __init__(self,func):
         self.func=func
