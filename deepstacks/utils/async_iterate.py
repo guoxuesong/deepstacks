@@ -2,8 +2,11 @@
 # coding:utf-8
 # vi:tabstop=4:shiftwidth=4:expandtab:sts=4
 
+import os
+import sys
 import Queue
 import thread
+import traceback
 
 class AsyncIterate:
 
@@ -47,6 +50,10 @@ class AsyncIterate:
                     self.q.put(data)
         except (GeneratorExit,StopIteration):
             self.q.put(None)
+        except:
+            print "Unexpected error:", sys.exc_info()[0]
+            traceback.print_exc()
+            os._exit(1)
 
 if __name__=='__main__':
     def myit(n):
