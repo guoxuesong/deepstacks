@@ -470,9 +470,9 @@ def watch_handler(network, flags, stacks, this_model):
         else:
             to, g, eq = flags['watch']
         if callable(to):  # type(to)==type(lambda x:x):
-            batchsize = lasagne.layers.get_output_shape(network)[0]
-            tmp = lasagne.layers.ExpressionLayer(
-                    network, to, output_shape=(batchsize, ))
+            #batchsize = lasagne.layers.get_output_shape(network)[0]
+            tmp = lasagne.layers.NonlinearityLayer(
+                    network, to)
         elif to == 'zeros':
             s0 = lasagne.layers.get_output_shape(network)
             target = ZeroLayer(
@@ -513,18 +513,29 @@ def equal_handler(network, flags, stacks, this_model):
     if len(flags['equal']) == 2:
         to, g = flags['equal']
         eq = lasagne.objectives.squared_error
-    else:
+        w = None
+    elif len(flags['equal']) == 3:
         to, g, eq = flags['equal']
+        w = None
+    else:
+        to, g, eq, w = flags['equal']
     if g not in errors:
         errors[g] = []
-    if to == 'zeros':
+    if callable(to):  # type(to)==type(lambda x:x):
+        #batchsize = lasagne.layers.get_output_shape(network)[0]
+        tmp = lasagne.layers.NonlinearityLayer(
+                network, to)
+    elif to == 'zeros':
         s0 = lasagne.layers.get_output_shape(network)
         target = ZeroLayer(
                 shape=s0,
                 input_var=T.zeros(s0, dtype=theano.config.floatX))
+        tmp = lasagne.layers.ElemwiseMergeLayer((network, target), eq)
     else:
         target = get_layer(to)
-    tmp = lasagne.layers.ElemwiseMergeLayer((network, target), eq)
+        tmp = lasagne.layers.ElemwiseMergeLayer((network, target), eq)
+    if w is not None:
+        tmp = lasagne.layers.NonlinearityLayer(tmp,lambda x:x*w)
     if 'sum' in flags:
         if type(flags['sum']) == int:
             n = flags['sum']
@@ -607,6 +618,7 @@ def unargmax_handler(network, flags, stacks, this_model):
     else:
         axis = (1, )
     shape = flags['shape']
+    sigma = flags['sigma'] if 'sigma' in flags else 1.0
     if type(shape) == tuple:
         shape = list(shape)
     if type(shape) == list and shape[0] is None:
@@ -615,7 +627,7 @@ def unargmax_handler(network, flags, stacks, this_model):
             network,
             curry(
                 lambda shape, axis, x: goroshin_unargmax(
-                    x, shape, axis=axis
+                    x, shape, axis=axis, sigma=sigma
                     ).astype(theano.config.floatX),
                 shape, axis),
             output_shape=shape)
