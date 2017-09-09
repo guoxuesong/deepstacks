@@ -10,26 +10,29 @@ class LocalShuffler(object):
     def __init__(self,size,shape):
         self.xpool=np.zeros((size,)+shape,dtype=theano.config.floatX)
         self.ypool=[0]*size
+        self.idpool=[0]*size
         self.size=size
         self.fill=0
-    def feed(self,data,y):
+    def feed(self,data,y,id):
         if data is None:
             if self.fill>0:
                 n = self.fill-1
                 self.fill-=1
-                return self.xpool[n],self.ypool[n]
+                return self.xpool[n],self.ypool[n],self.idpool[n]
             else:
                 return None
         if self.fill==self.size:
             n = int(random.random()*self.size)
-            res = (self.xpool[n],self.ypool[n])
+            res = (self.xpool[n],self.ypool[n],self.idpool[n])
             self.xpool[n]=data
             self.ypool[n]=y
+            self.idpool[n]=id
             return res
         else:
             n = self.fill
             self.xpool[n]=data
             self.ypool[n]=y
+            self.idpool[n]=id
             self.fill+=1
             return None
     def is_empty(self):
