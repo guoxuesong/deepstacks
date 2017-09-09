@@ -61,39 +61,39 @@ def roll(f, n, d=1, inscale=1.0, outscale=1.0, w=1, h=1, m=None):
         )
     return res
 
-'''
-def roll2(f, n, d=1, w=1, h=1, m={}):
-    res=()
-    p=0
-    for i in range(n):
-        res=(
-                (1, (f, f**i, w*h), 0,  0, 0, p, {}),
-                (1, (f, f**i, w*h), 0,  0, 0, p, {}),
-                ((0, 1), f*d , 1, 1, 0, p, {}),
-                ((1, 2), f*d , 1, 1, 0, p, {}),
-                (1, f*d   , 1,  1, 0, p, {}),
-                (1, f*d   , 1,  1, 0, p, {}),
-                (1, f     , 1,  1, 0, p, {}),
-                (1, f     , 1,  1, 0, p, {}),
-                )+res
-    res=((0, 0, 0, 0, 0, 0, {}),
-            )+res+(
-            ((0, 1), f , 1, 1, 0, p, m),
-            (0, (f**n, w, h), 0, 0, 0, p, {}),
-        )
-    return res
-
-def tile(f, n, p=0, m={}, local=False):
-    return (
-        (0, (f, n, n), 0,  0, 0, p, {}),
-        (0, f   , 1,  1, 0, p, {'local'} if local else {}),
-        (0, f   , 1,  1, 0, p, {'local'} if local else {}),
-        (0, f*n*n, n, n, 0, p, m),
-        )
-
-def local(f, n, p=0, m={}):
-    return tile(f, n, p, m, True)
-'''
+#'''
+#def roll2(f, n, d=1, w=1, h=1, m={}):
+#    res=()
+#    p=0
+#    for i in range(n):
+#        res=(
+#                (1, (f, f**i, w*h), 0,  0, 0, p, {}),
+#                (1, (f, f**i, w*h), 0,  0, 0, p, {}),
+#                ((0, 1), f*d , 1, 1, 0, p, {}),
+#                ((1, 2), f*d , 1, 1, 0, p, {}),
+#                (1, f*d   , 1,  1, 0, p, {}),
+#                (1, f*d   , 1,  1, 0, p, {}),
+#                (1, f     , 1,  1, 0, p, {}),
+#                (1, f     , 1,  1, 0, p, {}),
+#                )+res
+#    res=((0, 0, 0, 0, 0, 0, {}),
+#            )+res+(
+#            ((0, 1), f , 1, 1, 0, p, m),
+#            (0, (f**n, w, h), 0, 0, 0, p, {}),
+#        )
+#    return res
+#
+#def tile(f, n, p=0, m={}, local=False):
+#    return (
+#        (0, (f, n, n), 0,  0, 0, p, {}),
+#        (0, f   , 1,  1, 0, p, {'local'} if local else {}),
+#        (0, f   , 1,  1, 0, p, {'local'} if local else {}),
+#        (0, f*n*n, n, n, 0, p, m),
+#        )
+#
+#def local(f, n, p=0, m={}):
+#    return tile(f, n, p, m, True)
+#'''
 
 
 def swwae_pooling(f, imagesize, poolsize, where, what, beta=3):
@@ -101,7 +101,7 @@ def swwae_pooling(f, imagesize, poolsize, where, what, beta=3):
     return (
         (0, sh, 0,  0, 0, 0, {}),
         (0, 0,  0,  0, 0, 0, {'dimshuffle': (0, 1, 2, 4, 3, 5)}),
-        (0, 0, 0, 0, where, 0, {'argmax': (4, 5), 'beta': 3}),
+        (0, 0, 0, 0, where, 0, {'argmax': (4, 5), 'beta': beta}),
         (3, 0, poolsize, poolsize, what, 0, {'maxpool'}),
         )
 
@@ -286,4 +286,15 @@ def merge(inputs,*args):
     for layer in inputs:
         res+=linear(((layer,)+args,))
     res+=( (tuple(range(len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
+    return res
+def merge_some(inputs,*args):
+    res=()
+    for layer in inputs:
+        res+=linear(((layer,)+args,))
+    return res
+def merge_more(n,inputs,*args):
+    res=()
+    for layer in inputs:
+        res+=linear(((layer,)+args,))
+    res+=( (tuple(range(n+len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
     return res
