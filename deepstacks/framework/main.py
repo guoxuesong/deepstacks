@@ -1193,8 +1193,18 @@ def newlayers(l):
     l=macros(l)
     i=0   
     for a in l:
+        #print a
         assert a[-2]==0
-        m=dict(a[-1].copy())
+        #m=dict(a[-1].copy())
+        if type(a[-1]) == dict:
+            m = a[-1].copy()
+        elif type(a[-1]) == set:
+            m = {}
+            for t in a[-1]:
+                m[t] = True
+        else:
+            m = {}
+            a = a+(m, )
         m['saveparamlayer']='newlayer'
         res+=(a[:-1]+(m,),)
     return res
@@ -1204,7 +1214,16 @@ def deletelayers(l):
     l=macros(l)
     i=0   
     for a in l:
-        m=dict(a[-1].copy())
+        #m=dict(a[-1].copy())
+        if type(a[-1]) == dict:
+            m = a[-1].copy()
+        elif type(a[-1]) == set:
+            m = {}
+            for t in a[-1]:
+                m[t] = True
+        else:
+            m = {}
+            a = a+(m, )
         m['saveparamlayer']='deletelayer'
         res+=(a[:-1]+(m,),)
     return res
@@ -1319,6 +1338,7 @@ class DefaultNetworkBuilder(object):
             network=inputs['image']
             if 'mean' in inputs:
                 network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
+                inputs=inputs.copy()
                 inputs.pop('mean')
             return deepstacks.lasagne.build_network(network, self.network, inputs)
         elif self.build_network is not None:
@@ -1764,7 +1784,7 @@ def run(args):
                 train_it=batch_iterator_train(num_batchsize,args.train_db)
 
                 train_len = 80
-                if num_batches > 0:
+                if num_batches > train_len:
                     n=num_batches//80
                     train_len=(num_batches+n-1)//n
 
@@ -1788,6 +1808,14 @@ def run(args):
                         if training_data_shaker is not None:
                             batch = training_data_shaker(batch)
 
+                        #batch['image']=batch['image']/256.0
+                        #batch['image']=1-batch['image']
+                        #print batch['image'][0]
+                        #print batch['image'].shape
+                        #print batch['image'].dtype
+                        #print batch['target'][0]
+                        #print batch['target'].shape
+                        #print batch['target'].dtype
                         res=train_fn(*sorted_values(batch))
                         err=res[0]
                         penalty=res[1]
@@ -1893,7 +1921,7 @@ def run(args):
                 start_time = time.time()
                 count = 0
                 loopcount = 0
-                if batch_iterator is not None:
+                if batch_iterator is not None and db != '':
                     pass
                 else:
                     val_result+=[[ stage, val_err, val_errlist, val_batches, start_time, count, loopcount]]
@@ -2006,7 +2034,7 @@ def run(args):
                     min_loss = train_err / train_batches
                     logging.info('New low training loss : %f'%min_loss)
             stage, val_err, val_errlist, val_batches, start_time, count, loopcount = val_result[0]
-            if val_err / val_batches < min_valloss:
+            if val_batches > 0 and val_err / val_batches < min_valloss:
                 min_valloss = val_err / val_batches
                 logging.info('New low validation loss : %f'%min_valloss)
             if mode=='training':
