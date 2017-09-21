@@ -504,7 +504,7 @@ def lrn_handler(network, flags, stacks, this_model):
         lasagne_lru = flags['lrn']
     else:
         lasagne_lru = {}
-    N = 1e4  # XXX
+    N = network.be.bsz #1e4  # XXX
     kwargs = {}
     k = lasagne_lru.get('k', 2)
     assert k == 1
