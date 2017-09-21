@@ -14,6 +14,9 @@ from ..utils.curry import curry
 floatX=theano.config.floatX
 
 using_fingerprint=False
+def set_using_fingerprint(val):
+    global using_fingerprint
+    using_fingerprint=val
 
 def imnorm(x):#{{{
     M=np.max(x)
@@ -23,18 +26,47 @@ def imnorm(x):#{{{
         l=1.0
     res=((x-m)*1.0/l*255.0).astype('uint8')
     return res#}}}
+def im256(x):#{{{
+    M=1.0
+    m=0.0
+    l=M-m
+    if l==0:
+        l=1.0
+    res=((x-m)*1.0/l*255.0).astype('uint8')
+    return res#}}}
 
-visual_keys=[]
+np.set_printoptions(threshold=np.nan)
+
+#visual_keys=[]
 visual_vars=[]
-visual_varnames=[]
-def register_visual(key):
-    global visual_keys
-    visual_keys+=[key]
-def register_visual_var(name,var):
+visual_print_vars=[]
+visual_print_nargs=[]
+visual_print_functions=[]
+visual_inputs=[]
+#def register_visual(key):
+#    global visual_keys
+#    visual_keys+=[key]
+def register_visual_var(var):
     global visual_vars
-    global visual_varnames
     visual_vars+=[var]
-    visual_varnames+=[name]
+def register_visual_print(var,f=None):
+    global visual_print_vars,visual_print_functions,visual_print_nargs
+    if type(var)!=list:
+        visual_print_vars+=[var]
+        visual_print_nargs+=[1]
+        visual_print_functions+=[f]
+    else:
+        visual_print_vars+=var
+        visual_print_nargs+=[len(var)]
+        visual_print_functions+=[f]
+def register_visual_input(key):
+    global visual_inputs
+    visual_inputs+=[key]
+
+predict_inputs=[]
+def register_predict_input(key):
+    global predict_inputs
+    predict_inputs+=[key]
 
 num_batchsize = None
 walker_fn = None
@@ -49,11 +81,17 @@ def handle_model(inputs,network,stacks,layers,errors,watchpoints):
         key='predict'
     else:
         key='output'
-    predict_fn = theano.function([inputs['source_image'].input_var,inputs['action'].input_var], 
-        lasagne.layers.get_output(stacks[key][0],deterministic=True),
-        on_unused_input='warn', allow_input_downcast=True)
-    visual_fn = theano.function([inputs['source_image'].input_var,inputs['action'].input_var], 
-        [lasagne.layers.get_output(stacks[key][0],deterministic=True) for key in visual_keys],
+    if using_fingerprint:
+        predict_fn = theano.function([inputs['source_image'].input_var,inputs['source_fingerprint'].input_var,inputs['action'].input_var]+map(lambda x:inputs[x].input_var,predict_inputs), 
+            lasagne.layers.get_output(stacks[key][0],deterministic=True),
+            on_unused_input='warn', allow_input_downcast=True)
+    else:
+        predict_fn = theano.function([inputs['source_image'].input_var,inputs['action'].input_var]+map(lambda x:inputs[x].input_var,predict_inputs), 
+            lasagne.layers.get_output(stacks[key][0],deterministic=True),
+            on_unused_input='warn', allow_input_downcast=True)
+    visual_fn = theano.function([inputs['source_image'].input_var,inputs['action'].input_var]+map(lambda x:inputs[x].input_var,visual_inputs), 
+        #[lasagne.layers.get_output(stacks[key][0],deterministic=True) for key in visual_keys],
+        visual_vars+visual_print_vars,
         on_unused_input='warn', allow_input_downcast=True)
 
 register_model_handler(handle_model)
@@ -85,12 +123,20 @@ def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=
     h=64
     xscreenbase=0
     yscreenbase=0
-    for i in range(num_batchsize):
-        for j in range(len(src)):
-            #j=0
-            imshow64x64("sample-"+str(i)+"-"+str(j),
-                norms[j](src[j][i,0:3,:,:].transpose(1,2,0)))
+    for j in range(len(src)):
+        tmp=src[j][:,0:3,:,:].transpose(0,2,3,1)
+        if norms[j] is not None:
+            tmp=norms[j](tmp)
+        for i in range(num_batchsize):
+            #tmp=src[j][i,0:3,:,:].transpose(1,2,0)
+            #if norms[j] is not None:
+            #    tmp=norms[j](tmp)
+            imshow64x64("sample-"+str(i)+"-"+str(j),tmp[i])
             cv2.moveWindow("sample-"+str(i)+"-"+str(j),xscreenbase+j*w,yscreenbase+i*h)
+            if i>=7:
+                break
+
+    for i in range(num_batchsize):
 
         #j=1
         #cv2.imshow("sample-"+str(i)+"-"+str(j),
@@ -101,6 +147,7 @@ def show(src,norms,predictsloop,predictsloop2,predictsloop3,t,bottom=None,right=
         #    imnorm(recon[i,0:3].transpose(2,1,0)))
         #cv2.moveWindow("sample-"+str(i)+"-"+str(j),xscreenbase+j*w,yscreenbase+i*h)
 
+        j=len(src)-1
         n=j+1
 
         #for p in range(1):
@@ -164,8 +211,23 @@ def myupdate(m):
         #    inputs=inputs[:,:,::4,::4]
         #    outputs=outputs[:,:,::4,::4]
 
-        vis_args = [batch[key] for key in visual_varnames]
+        vis_args = [batch[key] for key in visual_inputs]
         vis = visual_fn(inputs,actions,*vis_args)
+
+        j=0
+        for n,f in zip(visual_print_nargs,visual_print_functions):
+            args=vis[len(visual_vars)+j:len(visual_vars)+j+n]
+            j+=n
+            if f is not None:
+                out=f(*args)
+                if out is not None:
+                    print out
+            else:
+                if len(args)==1:
+                    print args[0]
+                else:
+                    print args
+
         #srchide0=hides[0]
         #srchide1=hides[1]
         #srchide2=hides[2]
@@ -195,14 +257,16 @@ def myupdate(m):
                     predict=predict_fn(
                         p[i],
                         actions1,
+                        *map(lambda x:batch[x],predict_inputs)
                         )
                 else:
                     predict=predict_fn(
                         p[i],
                         batch['source_fingerprint'], #XXX
-                        outputs,#XXX
-                        batch['target_fingerprint'], #XXX
+                        #outputs,#XXX
+                        #batch['target_fingerprint'], #XXX
                         actions1,
+                        *map(lambda x:batch[x],predict_inputs)
                         )
                 predicts+=[predict]
 
@@ -211,14 +275,16 @@ def myupdate(m):
                     predict=predict_fn(
                         inputs,
                         actions2,
+                        *map(lambda x:batch[x],predict_inputs)
                         )
                 else:
                     predict=predict_fn(
                         inputs,
                         batch['source_fingerprint'],
-                        outputs,
-                        batch['target_fingerprint'],
+                        #outputs,
+                        #batch['target_fingerprint'],
                         actions2,
+                        *map(lambda x:batch[x],predict_inputs)
                         )
                 predicts2+=[predict]
             p=predicts
@@ -231,8 +297,11 @@ def myupdate(m):
         #    print [(x**2).sum()**0.5 for x in tmp[j][0:4]]
         #print np. asarray(bn_std)
         #src=[inputs.transpose(0,1,3,2),np.roll(inputs.transpose(0,1,3,2),1,axis=0)]
-        src=[inputs.transpose(0,1,3,2),outputs.transpose(0,1,3,2)]+[t.transpose(0,1,3,2) for t in vis]
-        norms=[imnorm]*len(src)
+        src=[inputs.transpose(0,1,3,2),outputs.transpose(0,1,3,2)]+[t.transpose(0,1,3,2) for t in vis[:len(visual_vars)]]
+        norms=[imnorm,imnorm]+[imnorm]*len(vis[:len(visual_vars)])
+
+        #for t in vis[len(visual_vars):]:
+        #    print t
 
         #print action
         for t in range(len(predictsloop)):
