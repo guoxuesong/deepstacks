@@ -163,7 +163,7 @@ def adamax(loss_or_grads, params, learning_rate=0.002, beta1=0.9,
         value = param.get_value(borrow=True)
         if type(noise)==float and noise>0:
             g_t = g_t+srng.normal(value.shape,avg=0.0,std=noise)
-        elif noise:
+        elif type(noise)==bool and noise:
             g_t = g_t+srng.normal(value.shape,avg=0.0,std=1e-8)
 
         if type(grads_clip)==float and grads_clip>0:
