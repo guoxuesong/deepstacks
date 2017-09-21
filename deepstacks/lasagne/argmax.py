@@ -29,7 +29,7 @@ def goroshin_argmax(z, shape, axis=(1, ), beta=3, epsilon=0.0001):
     return T.stack(res, axis=1)
 
 
-def goroshin_unargmax(z, shape, axis=(1, ), sigma=1.0, epsilon=0.0001):
+def goroshin_unargmax(z, shape, axis=(1, ), sigma=1.0):
     assert len(set([shape[ax] for ax in axis])) == 1
     assert len(shape) >= axis[-1]
     scale = utils.floatX(shape[axis[0]])
@@ -55,12 +55,16 @@ def goroshin_unargmax(z, shape, axis=(1, ), sigma=1.0, epsilon=0.0001):
     return d
 
 if __name__ == '__main__':
-    z = np.zeros((16, 3, 8, 8, 2, 2), dtype='float32')
-    z[:, :, :, :, 1, 0] = 1
-    print z[0, 0, 0, 0, :, :]
-    xy = goroshin_argmax(z, (16, 3, 8, 8, 2, 2), axis=(4, 5), beta=32)
-    print xy.eval()
-    print xy.shape.eval()
-    recon = goroshin_unargmax(xy, (16, 3, 8, 8, 2, 2), axis=(4, 5))
-    print recon.shape.eval()
-    print recon[0, 0, 0, 0, :, :].eval()
+    z = np.array([1,0,0,0,1,1,0,0,0,0])
+    xy = goroshin_argmax(z, (10,), axis=(0, ), beta=32)
+    v = goroshin_max(z, axis=(0, ), beta=32)
+    print xy.eval(),v.eval()
+#    z = np.zeros((16, 3, 8, 8, 2, 2), dtype='float32')
+#    z[:, :, :, :, 1, 0] = 1
+#    print z[0, 0, 0, 0, :, :]
+#    xy = goroshin_argmax(z, (16, 3, 8, 8, 2, 2), axis=(4, 5), beta=32)
+#    print xy.eval()
+#    print xy.shape.eval()
+#    recon = goroshin_unargmax(xy, (16, 3, 8, 8, 2, 2), axis=(4, 5))
+#    print recon.shape.eval()
+#    print recon[0, 0, 0, 0, :, :].eval()
