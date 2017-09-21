@@ -14,6 +14,7 @@ from ..stacked import register_flag_handler, register_flag_handler_closer
 from ..stacked import register_layer_handler, register_nonlinearities
 from ..stacked import *
 from ..utils.curry import curry
+from .. import utils
 from .argmax import goroshin_max, goroshin_argmax, goroshin_unargmax
 
 
@@ -87,7 +88,11 @@ register_layers_class(LasagneLayers)
 
 
 def concat_handler(layers, flags, stacks, this_model):
-    return lasagne.layers.ConcatLayer(layers, axis=1)
+    if 'axis' in flags:
+        axis = flags['axis']
+    else:
+        axis = 1
+    return lasagne.layers.ConcatLayer(layers, axis=axis)
 
 
 def merge_handler(layers, flags, stacks, this_model):
@@ -535,7 +540,8 @@ def equal_handler(network, flags, stacks, this_model):
         target = get_layer(to)
         tmp = lasagne.layers.ElemwiseMergeLayer((network, target), eq)
     if w is not None:
-        tmp = lasagne.layers.NonlinearityLayer(tmp,lambda x:x*w)
+        w = get_layer(w)
+        tmp = lasagne.layers.ElemwiseMergeLayer((tmp,w),lambda x,y:x*y/(y.sum(dtype=theano.config.floatX)+utils.floatX(1e-4))*T.prod(y.shape,dtype=theano.config.floatX))
     if 'sum' in flags:
         if type(flags['sum']) == int:
             n = flags['sum']
