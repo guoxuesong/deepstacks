@@ -23,12 +23,12 @@ def imnorm(x):#{{{
     res=((x-m)*1.0/l*255.0).astype('uint8')
     return res#}}}
 
-visual_keys=[]
+#visual_keys=[]
 visual_vars=[]
 visual_varnames=[]
-def register_visual(key):
-    global visual_keys
-    visual_keys+=[key]
+#def register_visual(key):
+#    global visual_keys
+#    visual_keys+=[key]
 def register_visual_var(name,var):
     global visual_vars
     global visual_varnames
@@ -52,7 +52,8 @@ def handle_model(inputs,network,stacks,layers,errors,watchpoints):
         lasagne.layers.get_output(stacks[key][0],deterministic=True),
         on_unused_input='warn', allow_input_downcast=True)
     visual_fn = theano.function([inputs['image'].input_var], 
-        [lasagne.layers.get_output(stacks[key][0],deterministic=True) for key in visual_keys],
+        #[lasagne.layers.get_output(stacks[key][0],deterministic=True) for key in visual_keys],
+        visual_vars,
         on_unused_input='warn', allow_input_downcast=True)
 
 register_model_handler(handle_model)
