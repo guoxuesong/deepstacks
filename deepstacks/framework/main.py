@@ -2205,6 +2205,10 @@ class ArgumentParser(argparse.ArgumentParser):
 
         define_boolean(
             'nan_guard', False, """Enable NanGuardMode of theano.""")
+        define_boolean(
+            'testMany', False, """Test many.""")
+        define_boolean(
+            'allPredictions', False, """All predictions should be grabbed and formatted.""")
         ## Tensorflow-unique arguments for DIGITS
         #define_string(
         #    'save_vars', 'all',

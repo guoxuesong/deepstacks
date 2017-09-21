@@ -148,22 +148,28 @@ def iterate_minibatches(batchsize, database, shufflesize=1, use_caffe=True):
 #        yield X
 
 from scipy.misc import imsave,imread
+import os
 def iterate_one(batchsize, database):
     #print 'iterate_one',batchsize,database
-    image=imread(database)
-    if len(image.shape)==2:
-        image=image[...,np.newaxis]
-    image=image.transpose(2,0,1)[np.newaxis,...]
-    ids = np.zeros((batchsize,),dtype='int64')
-    X = {
-            'image':image,
-            'target':np.zeros((1,1),dtype=theano.config.floatX),
-            }
-    #print X,ids
-    for h in minibatch_handlers:
-        h(X,ids)
-    #print X,ids
-    yield X,ids
+    if os.path.isdir(database):
+        a=map(lambda x:os.path.join(database,x),sorted(os.listdir(database)))
+    else:
+        a=[database]
+    for database in a:
+        image=imread(database)
+        if len(image.shape)==2:
+            image=image[...,np.newaxis]
+        image=image.transpose(2,0,1)[np.newaxis,...]
+        ids = np.zeros((batchsize,),dtype='int64')
+        X = {
+                'image':image,
+                'target':np.zeros((1,1),dtype=theano.config.floatX),
+                }
+        #print X,ids
+        for h in minibatch_handlers:
+            h(X,ids)
+        #print X,ids
+        yield X,ids
 
 register_batch_iterator(
         AsyncIterate(curry(iterate_minibatches,shufflesize=1)),
