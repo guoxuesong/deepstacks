@@ -96,20 +96,28 @@ def roll(f, n, d=1, inscale=1.0, outscale=1.0, w=1, h=1, m=None):
 #'''
 
 
-def swwae_pooling(f, imagesize, poolsize, where, what, beta=3):
+def swwae_pooling(f, imagesize, poolsize, where, what, beta=3, mode='maxpool'):
     sh = (f, imagesize/poolsize, poolsize, imagesize/poolsize, poolsize)
-    return (
+    res = (
         (0, sh, 0,  0, 0, 0, {}),
         (0, 0,  0,  0, 0, 0, {'dimshuffle': (0, 1, 2, 4, 3, 5)}),
         (0, 0, 0, 0, where, 0, {'argmax': (4, 5), 'beta': beta}),
-        (3, 0, poolsize, poolsize, what, 0, {'maxpool'}),
         )
+    if mode=='max':
+        res += (
+                (1, 0, poolsize, poolsize, what, 0, {'max': (4,5), 'beta': beta}),
+            )
+    elif mode=='maxpool':
+        res += (
+                (3, 0, poolsize, poolsize, what, 0, {'maxpool'}),
+            )
+    return res
 
 
-def swwae_unpooling(f, imagesize, poolsize, where, what):
+def swwae_unpooling(f, imagesize, poolsize, where, what, sigma=1.0):
     sh = (None, f, imagesize/poolsize, imagesize/poolsize, poolsize, poolsize)
     return (
-        (where, 0, 0,  0, 0, 0, {'unargmax': (4, 5), 'shape': sh}),
+        (where, 0, 0,  0, 0, 0, {'unargmax': (4, 5), 'shape': sh, 'sigma': sigma}),
         (0, 0, 0, 0, 0, 0, {'dimshuffle': (0, 1, 2, 4, 3, 5)}),
         (0, (f, imagesize, imagesize), 0, 0, 0, 0, {}),
         (what, 0, poolsize, 1, 0, 0, {'upscale'}),
@@ -133,6 +141,9 @@ share2data = {}
 
 
 def share(group, l, local_vars={}, save_vars={}, noshare=False):
+    for k in save_vars:
+        if k not in local_vars:
+            local_vars[k]=None
     if type(group) == list:
         assert len(group) == 1
         group = group[0]
@@ -285,7 +296,10 @@ def merge(inputs,*args):
     res=()
     for layer in inputs:
         res+=linear(((layer,)+args,))
-    res+=( (tuple(range(len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
+    if 'linear' in args[-1]:
+        res+=( (tuple(range(len(inputs))),0,0,0,0,0,{'add':True}),)
+    else:
+        res+=( (tuple(range(len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
     return res
 def merge_some(inputs,*args):
     res=()
@@ -296,5 +310,20 @@ def merge_more(n,inputs,*args):
     res=()
     for layer in inputs:
         res+=linear(((layer,)+args,))
-    res+=( (tuple(range(n+len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
+    if 'linear' in args[-1]:
+        res+=( (tuple(range(n+len(inputs))),0,0,0,0,0,{'add':True}),)
+    else:
+        res+=( (tuple(range(n+len(inputs))),0,0,0,0,0,{'add':True,'relu':True}),)
+    return res
+
+def remove_equal(l):
+    l = macros(l)
+    res = ()
+    for i in range(len(l)):
+        a = l[i]
+        m = a[-1].copy()
+        if 'equal' in m:
+            m.pop('equal')
+        a = a[:-1]+(m,)
+        res = res+(a,)
     return res
