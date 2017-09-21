@@ -5,7 +5,7 @@
 import os
 import random
 import numpy as np
-from .main import register_batch_iterator
+from .main import register_batch_iterator,register_batches
 from ..utils.curry import curry
 from ..utils.multinpy import readnpy,writenpy
 from ..utils.async_iterate import AsyncIterate
@@ -47,6 +47,9 @@ def register_minibatch_handler(h):
 
 centralize=False
 one_direction=False
+def set_one_direction(val):
+    global one_direction
+    one_direction=val
 
 using_fingerprint=False
 def set_using_fingerprint(val):
@@ -54,12 +57,7 @@ def set_using_fingerprint(val):
     using_fingerprint=val
 
 
-def create_fingerprint(a,n):
-    res = np.zeros((len(a),n,1,1),dtype=floatX)
-    for i in range(n):
-        res[:,i,0,0]=a%2
-        a=a>>1
-    return res
+from ..utils import create_binary
 
 def build_action_sample(n,d,zero=False):
     value=(np.random.rand(n,num_actions,1,1)*1.0).astype(theano.config.floatX)
@@ -72,18 +70,26 @@ def build_action_sample(n,d,zero=False):
         value[0,:,:,:]=np.zeros_like(value[0,:,:,:])
     return value
 
+rangeframes=frames/90*10 # if frames is 90 for 4.5 second, 20 frames/second, unit action is 0.5 second
+unitframes=frames/90*10
+
+def set_range_frames(n):
+    global rangeframes
+    global unitframes
+    rangeframes=n
+    unitframes=n
+
 def iterate_minibatches(aa,stage,batchsize,database='.',iteratesize=400, shuffle=False, idx=False):
-    rangeframes=frames/90*10
-    unitframes=frames/90*10
     i=0
-    last=None
+    #last=None
     batchsize0=batchsize
     while i<iteratesize:
         if stage=='train':
-            if last is not None:
-                batchsize=batchsize0#/2
-            else:
-                batchsize=batchsize0
+            pass
+            #if last is not None:
+            #    batchsize=batchsize0#/2
+            #else:
+            #    batchsize=batchsize0
         else:
             batchsize=batchsize0
         if stage=='train':
@@ -161,8 +167,11 @@ def iterate_minibatches(aa,stage,batchsize,database='.',iteratesize=400, shuffle
             else:
                 batch = ((aa(k*frames+beforpos)/256.0).astype(floatX),None,actions1,(aa(k*frames+beginpos)/256.0).astype(floatX),None,"actions2","(aa(k*frames+endpos)/256.0).astype(floatX)",None,None,None,None)
                 images1, ig1, actions1, images2, ig2, actions2, images3, ig3, rewards, targets, flags = batch
-            idx1 = create_fingerprint(k*frames+beforpos,32)
-            idx2 = create_fingerprint(k*frames+beginpos,32)
+
+            ids1 = k*frames+beforpos
+            ids2 = k*frames+beginpos
+            idx1 = create_binary(k*frames+beforpos,32)[:,:,np.newaxis,np.newaxis]
+            idx2 = create_binary(k*frames+beginpos,32)[:,:,np.newaxis,np.newaxis]
             if images1.shape[2]==256:
                 images1=images1[:,:,::4,::4]
                 images2=images2[:,:,::4,::4]
@@ -189,50 +198,26 @@ def iterate_minibatches(aa,stage,batchsize,database='.',iteratesize=400, shuffle
                 ),axis=1)
             samples=np.concatenate((action_samples,np.zeros((rl_dummy,num_extra_actions,1,1),dtype=floatX)),axis=1)
 
-            if last is None:
-                for j in range(batchsize):
-                    if not one_direction:
-                        if random.random()*2.0<=1.0:
-                            actions[j]=-actions[j]
-                            tmp=inputs[j]
-                            inputs[j]=outputs[j]
-                            outputs[j]=tmp
+            for j in range(batchsize):
+                if not one_direction:
+                    if random.random()*2.0<=1.0:
+                        actions[j]=-actions[j]
+                        tmp=inputs[j]
+                        inputs[j]=outputs[j]
+                        outputs[j]=tmp
 
-                X={
-                        'source_image':inputs,
-                        'target_image':outputs,
-                        'action':actions,
-                        }
-                if using_fingerprint:
-                    X['source_fingerprint']=idx1
-                    X['target_fingerprint']=idx2
-                for h in minibatch_handlers:
-                    h(X)
-            else:
-                inputs=np.concatenate((last['source_image'][batchsize:],inputs),axis=0)
-                outputs=np.concatenate((last['target_image'][batchsize:],outputs),axis=0)
-                actions=np.concatenate((last['action'][batchsize:],actions),axis=0)
+            X={
+                    'source_image':inputs,
+                    'target_image':outputs,
+                    'action':actions,
+                    }
+            if using_fingerprint:
+                X['source_fingerprint']=idx1
+                X['target_fingerprint']=idx2
 
-                for j in range(batchsize):
-                    if not one_direction:
-                        if random.random()*2.0<=1.0:
-                            actions[j]=-actions[j]
-                            tmp=inputs[j]
-                            inputs[j]=outputs[j]
-                            outputs[j]=tmp
-
-                X={
-                        'source_image':inputs,
-                        'target_image':outputs,
-                        'action':actions,
-                        }
-                if using_fingerprint:
-                    X['source_fingerprint']=idx1
-                    X['target_fingerprint']=idx2
-                for h in minibatch_handlers:
-                    h(X)
-            last=X
-
+            assert (ids2<(1<<32)).all()
+            for h in minibatch_handlers:
+                h(X,(ids1<<32)|ids2)
             yield X
         else:
             X={
@@ -240,15 +225,19 @@ def iterate_minibatches(aa,stage,batchsize,database='.',iteratesize=400, shuffle
                     'target_image':(aa(k*frames+endpos)/256.0).astype(floatX),
                     'action':actions2,
                     }
-            idx1 = create_fingerprint(k*frames+beginpos,32)
-            idx2 = create_fingerprint(k*frames+endpos,32)
+            ids1 = k*frames+beginpos
+            ids2 = k*frames+endpos
+            idx1 = create_binary(k*frames+beginpos,32)[:,:,np.newaxis,np.newaxis]
+            idx2 = create_binary(k*frames+endpos,32)[:,:,np.newaxis,np.newaxis]
             if using_fingerprint:
                 X['source_fingerprint']=idx1
                 X['target_fingerprint']=idx2
+            assert (ids2<(1<<32)).all()
             for h in minibatch_handlers:
-                h(X)
+                h(X,(ids1<<32)|ids2)
             yield X
         i+=1
 
 aa = load_dataset()
 register_batch_iterator(AsyncIterate(curry(iterate_minibatches,aa,'train',iteratesize=400,shuffle=True)),AsyncIterate(curry(iterate_minibatches,aa,'val',iteratesize=40,shuffle=True)))
+register_batches(400)
