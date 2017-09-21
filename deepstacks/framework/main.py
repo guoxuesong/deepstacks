@@ -138,7 +138,7 @@ def set_param_value(params,values,ignore_mismatch=False):#{{{
         if len(pshape) != len(vshape):
             if ignore_mismatch:
                 logging.warning("mismatch: parameter has shape %r but value to "
-                        "set has shape %r") % (pshape, vshape)
+                        "set has shape %r" % (pshape, vshape))
                 res+=[p]
             else:
                 raise ValueError("mismatch: parameter has shape %r but value to "
@@ -502,7 +502,10 @@ network_builder=None
 
 def register_network_builder(build_network):
     global network_builder
-    network_builder=build_network
+    if network_builder is None:
+        network_builder=build_network
+    else:
+        logging.info('Ignore register_network_builder.')
 
 inference_handler=None
 
@@ -1185,6 +1188,11 @@ def register_batch_iterator(train,val,test=None,inference=None):
     global batch_iterator_train,batch_iterator_val,batch_iterator_test,batch_iterator_inference
     batch_iterator_train,batch_iterator_val,batch_iterator_test,batch_iterator_inference=train,val,test,inference
 
+global_batches=0
+def register_batches(batches):
+    global global_batches
+    global_batches=batches
+
 def layers(l):
     return macros(l)
 
@@ -1255,15 +1263,39 @@ def register_data_shaker(train,val=None):
     training_data_shaker=train
     validation_data_shaker=val
 
+def save_weight_visualization(layernames, w, b, a):
+    try:
+        import h5py
+    except ImportError:
+        logging.error("Attempt to create HDF5 Loader but h5py is not installed.")
+        exit(-1)
+    fn = os.path.join(args.save, 'vis.h5')
+    vis_db = h5py.File(fn, 'w')
+    db_layers = vis_db.create_group("layers")
+
+    logging.info('Saving visualization to %s', fn)
+    for i in range(0, len(w)):
+        dset = db_layers.create_group(str(i))
+        dset.attrs['name'] = layernames[i]
+        if w[i] is not None and w[i].shape:
+            dset.create_dataset('weights', data=w[i])
+        if b[i] is not None and b[i].shape:
+            dset.create_dataset('bias', data=b[i])
+        if a[i] is not None and a[i].shape:
+            dset.create_dataset('activations', data=a[i])
+    vis_db.close()
+
 train_fn = None
 val_fn = None
 inference_fn = None
+inference_layers = None
+inference_layers_fn = None
 
 def inference(num_batchsize,inference_db,mean_data=None,visualize_inf=False):
     count=0
     for batch in batch_iterator_inference(num_batchsize,inference_db):
         if type(batch)==tuple:
-            ids,batch=batch
+            batch,ids=batch
         else:
             ids=[]
             for t in range(num_batchsize):
@@ -1275,16 +1307,24 @@ def inference(num_batchsize,inference_db,mean_data=None,visualize_inf=False):
         out = inference_fn(*sorted_values(batch))
         if inference_handler is not None:
             inference_handler(out[0],ids)
-#    if visualize_inf:
-#        trainable_weights=lasagne.layers.get_all_params(layers,trainable=True)
-#        a=lasagne.layers.get_all_layers(layers)
-#        for layer_id,layer in enumerate(a):
-#            for tw in trainable_weights:
-#                if tw in l.get_params():
-#                    op=layer.name or 'layer_'+str(layer_id)
-#                    var=tw.name
-#                    activations=lasagne.layers.get_output(layer)
-#                    weights=
+    if visualize_inf:
+        layernames=[]
+        w=[]
+        b=[]
+        a=inference_layers_fn(*sorted_values(batch))
+        for layer_id,layer in enumerate(inference_layers):
+            layername=layer.name or layer.__class__.__name__+str(layer_id)
+            weights=None
+            bias=None
+            for p in layer.get_params():
+                if p.name=='W':
+                    weights=p.get_value()
+                if p.name=='b':
+                    bias=p.get_value()
+            layernames+=[layername]
+            w+=[weights]
+            b+=[bias]
+        save_weight_visualization(layernames, w, b, a)
 
     return out[0]
 
@@ -1335,6 +1375,8 @@ class DefaultNetworkBuilder(object):
             self.build_network=m['build_network']
     def __call__(self,inputs):
         if self.network is not None:
+            #if 'image' not in inputs:
+            #    print inputs
             network=inputs['image']
             if 'mean' in inputs:
                 network=lasagne.layers.ElemwiseMergeLayer((network,inputs['mean']),T.sub)
@@ -1350,6 +1392,7 @@ layers = None
 def run(args):
     global lrpolicy
     global train_fn,val_fn,inference_fn
+    global inference_layers,inference_layers_fn
     global network_builder
     global layers
     if args.train_db != '':
@@ -1373,13 +1416,14 @@ def run(args):
     if args.network!='':
         network_builder=DefaultNetworkBuilder(os.path.join(os.path.dirname(os.path.realpath(__file__)),args.networkDirectory,args.network))
 
-    num_batches=0
+    num_batches=global_batches
 
     num_epochs=args.epoch
     num_batchsize=args.batch_size
     learning_rate=args.lr_base_rate
     momentum=args.momentum
     grads_clip=args.grads_clip
+    grads_noise=args.grads_noise
     accumulation=args.accumulation
 
     total_training_steps = num_epochs
@@ -1405,11 +1449,15 @@ def run(args):
     elif mode == 'validation':
         it=batch_iterator_val(num_batchsize,args.validation_db)
     elif mode == 'inference':
+        #print 'args.inference_db',args.inference_db
         it=batch_iterator_inference(num_batchsize,args.inference_db)
+    #print 'mode',mode
+    #print it
 
     for X in it:
+        #print X
         if type(X)==tuple:
-            ids,X=X
+            X,ids=X
         for t in X:
             m[t]=X[t].shape
             dtypes[t]=X[t].dtype
@@ -1446,6 +1494,9 @@ def run(args):
         name=k
         input_var_type = T.TensorType(dtypes[k],
                 [False,]+[s == 1 for s in m[k][1:]])
+        # copy lasagne code would cause a TypeError: integer vector required for argument: true_one_of_n(got type: TensorType(int64, (True,)) instead of: TensorType(int64, vector))
+        #input_var_type = T.TensorType(dtypes[k],
+        #        [s == 1 for s in m[k][:]])
         var_name = ("%s.input" % name) if name is not None else "input"
         input_var = input_var_type(var_name)
         inputs[k]=lasagne.layers.InputLayer(name=name,input_var=input_var,shape=m[k])
@@ -1541,6 +1592,8 @@ def run(args):
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
         ],[],weights,ignore_mismatch=True,newlayers=newlayers)
+    if args.weights != '':
+        assert epoch_begin!=0
     logging.info('epoch_begin=%d'%epoch_begin)
     for h in params_handlers:
         h(inputs,network,stacks,layers,raw_errors,raw_watchpoints)
@@ -1550,7 +1603,7 @@ def run(args):
             sorted_values(networks) for networks in all_networks
             ],[],prefix,deletelayers=deletelayers)
         logging.info('layer(s) deleted.')
-        exit(0)
+        exit(1)
     if has_loading_networks:
         save_params(epoch_begin,[
             sorted_values(networks) for networks in all_networks
@@ -1638,7 +1691,7 @@ def run(args):
 
     if updater is not None:
         updater()
-    layers=list(set(sum([networks.values() for networks in all_networks],[]))-{conv_groups['output'][0]})+[conv_groups['output'][0]]
+    #layers=list(set(sum([networks.values() for networks in all_networks],[]))-{conv_groups['output'][0]})+[conv_groups['output'][0]]
 
     conv_groups=None
 
@@ -1705,6 +1758,13 @@ def run(args):
                     on_unused_input='warn', 
                     allow_input_downcast=True,
                     )
+            inference_layers = lasagne.layers.get_all_layers(layers)
+            inference_layers_fn = theano.function(
+                    map(lambda x:x.input_var,sorted_values(inputs)), 
+                    map(lambda x:lasagne.layers.get_output(x,deterministic=True),inference_layers),
+                    on_unused_input='warn', 
+                    allow_input_downcast=True,
+                    )
         logging.info('num_batchsize=%d'%num_batchsize)
         inference(num_batchsize,args.inference_db,mean_data=mean_data,visualize_inf=args.visualize_inf)
 #        for batch in batch_iterator_inference(num_batchsize,args.inference_db):
@@ -1731,7 +1791,7 @@ def run(args):
             elif args.optimization=='adamax':
                 updates = lasagne.updates.adamax(loss, params, learning_rate=lr)
             elif args.optimization=='adamax2':
-                updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, average=accumulation)
+                updates = adamax(loss, params, learning_rate=lr, grads_clip=grads_clip, noise=grads_clip,average=accumulation)
             if train_fn is None:
                 train_fn = theano.function(
                         map(lambda x:x.input_var,sorted_values(inputs)), 
@@ -1782,6 +1842,7 @@ def run(args):
                 count = 0
                 loopcount = 0
                 train_it=batch_iterator_train(num_batchsize,args.train_db)
+                #num_batches=global_batches
 
                 train_len = 80
                 if num_batches > train_len:
@@ -1799,7 +1860,7 @@ def run(args):
                             break
 
                         if type(batch)==tuple:
-                            ids,batch=batch
+                            batch,ids=batch
 
                         if mean_data is not None:
                             assert 'mean' not in batch
@@ -1942,7 +2003,7 @@ def run(args):
                             stop=True
                             break
                         if type(batch)==tuple:
-                            ids,batch=batch
+                            batch,ids=batch
 
                         if mean_data is not None:
                             assert 'mean' not in batch
@@ -2089,7 +2150,8 @@ class ArgumentParser(argparse.ArgumentParser):
         define_string('labels_list', '', """Text file listing label definitions""")
         define_string('mean', '', """Mean image file""")
         define_float('momentum', '0.9', """Momentum""")  # Not used by DIGITS front-end
-        define_float('grads_clip', '1.0', """Gradients clip""")  # Not used by DIGITS front-end
+        define_float('grads_clip', '0.0', """Gradients clip""")  # Not used by DIGITS front-end
+        define_float('grads_noise', '0.0', """Gradients noise""")  # Not used by DIGITS front-end
         define_string('network', '', """File containing network (model)""")
         define_string('networkDirectory', '', """Directory in which network exists""")
         define_string('optimization', 'sgd', """Optimization method""")
