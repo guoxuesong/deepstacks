@@ -25,15 +25,15 @@ BATCHSIZE=$3
 #echo $DATASET
 #echo $BATCHSIZE
 
-curl localhost:5000/datasets/$DATASET.json|grep directory|cut -d '"' -f 4 |sed s/\\/digits\\/jobs\\/$DATASET// >tmp.txt
-DIGITS=`cat tmp.txt`
+curl -s localhost:5000/datasets/$DATASET.json|grep directory|cut -d '"' -f 4 |sed s/\\/digits\\/jobs\\/$DATASET// >/tmp/digitshome.txt
+DIGITS=`cat /tmp/digitshome.txt`
 
 if [ "$DIGITS" == "" ];then
 	echo 'Bad dataset'
 	exit
 fi
 
-cat $1|sed s/#.*$// >tmp.txt
+cat $1|sed s/#.*$// >/tmp/network.txt
 group_name=`basename -s .py $1`
 model_name=`basename -s .py $1`
 
@@ -50,14 +50,14 @@ else
 	CUSTOM_NETWORK_SNAPSHOT=''
 fi
 curl -s localhost:5000/login -c digits.cookie -XPOST -F username=$USERNAME >/dev/null
-curl -s localhost:5000/models/images/classification.json -b digits.cookie -XPOST -F use_mean=none -F custom_network="$(<tmp.txt)" $CUSTOM_NETWORK_SNAPSHOT -F batch_size=$BATCHSIZE -F method=custom -F batch_accumulation=1 -F solver_type=ADAM -F learning_rate=1e-4 -F train_epochs=100 -F framework=deepstacks -F model_name=$model_name -F group_name=$group_name -F dataset=$DATASET|grep "job id"|cut -d ':' -f 2 |cut -d '"' -f 2 >jobid.txt
-ln $DIGITS/digits/jobs/`cat jobid.txt`/deepstacks_output.log $group_name.log -sf
-while [ ! -e $DIGITS/digits/jobs/`cat jobid.txt`/snapshot-model-layers-0.npz ];do
-	curl -s localhost:5000/models/`cat jobid.txt`/status|grep -E 'Initialized|Running' >status.txt
-	if [ "`cat status.txt`" = "" ]; then
+curl -s localhost:5000/models/images/classification.json -b digits.cookie -XPOST -F use_mean=none -F custom_network="$(</tmp/network.txt)" $CUSTOM_NETWORK_SNAPSHOT -F batch_size=$BATCHSIZE -F method=custom -F batch_accumulation=1 -F solver_type=ADAM -F learning_rate=1e-4 -F train_epochs=100 -F framework=deepstacks -F model_name=$model_name -F group_name=$group_name -F dataset=$DATASET|grep "job id"|cut -d ':' -f 2 |cut -d '"' -f 2 >/tmp/jobid.txt
+ln $DIGITS/digits/jobs/`cat /tmp/jobid.txt`/deepstacks_output.log $group_name.log -sf
+while [ ! -e $DIGITS/digits/jobs/`cat /tmp/jobid.txt`/snapshot-model-layers-0.npz ];do
+	curl -s localhost:5000/models/`cat /tmp/jobid.txt`/status|grep -E 'Initialized|Running' >/tmp/status.txt
+	if [ "`cat /tmp/status.txt`" = "" ]; then
 		exit
 	fi
 	sleep 1
 done
-ln $DIGITS/digits/jobs/`cat jobid.txt`/snapshot-model-layers-0.npz $group_name-model-layers-0.npz -sf
-ln $DIGITS/digits/jobs/`cat jobid.txt`/snapshot-model-global-0.npz $group_name-model-global-0.npz -sf
+ln $DIGITS/digits/jobs/`cat /tmp/jobid.txt`/snapshot-model-layers-0.npz $group_name-model-layers-0.npz -sf
+ln $DIGITS/digits/jobs/`cat /tmp/jobid.txt`/snapshot-model-global-0.npz $group_name-model-global-0.npz -sf
