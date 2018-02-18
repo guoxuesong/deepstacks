@@ -126,13 +126,15 @@ def touch(fname, times=None):#{{{
     with open(fname, 'a'):
         os.utime(fname, times)#}}}
 
-def set_param_value(params,values,ignore_mismatch=False):#{{{
+def set_param_value(params,values,ignore_mismatch=False,resetparams=[]):#{{{
     res=[]
     if len(params) != len(values):
         raise ValueError("mismatch: got %d values to set %d parameters" %
                          (len(values), len(params)))
 
     for p, v in zip(params, values):
+        if p in resetparams:
+            continue
         pshape=p.get_value().shape
         vshape=v.shape
         if len(pshape) != len(vshape):
@@ -207,7 +209,7 @@ def save_params(epoch,layers,global_params,prefix='',deletelayers=[]):#{{{
     np.savez(prefix+'model-global-'+str(0)+'.npz', *values)
     if len(values)==0:
         touch(prefix+'model-global-'+str(0)+'.skip')#}}}
-def load_params(layers,global_params,prefix='',partial=False,ignore_mismatch=False,newlayers=[]):#{{{
+def load_params(layers,global_params,prefix='',partial=False,ignore_mismatch=False,newlayers=[],resetlayers=[]):#{{{
     epoch = 0
     mismatch = []
     for layers,name in zip((layers,),("layers",)):
@@ -226,13 +228,18 @@ def load_params(layers,global_params,prefix='',partial=False,ignore_mismatch=Fal
                         if not t in layer.get_params():
                             newparams+=[t]
                     params=newparams
+
+                resetparams = []
+                for layer in resetlayers:
+                    for t in layer.get_params():
+                        resetparams += [t]
                 #params=[]
                 #for j in range(len(layers[i])):
                     #a=[x for x in layers[i][j].get_params() and x not in params]
                     #params+=a
                 if partial:
                     values=values[:len(params)]
-                mismatch+=set_param_value(params,values,ignore_mismatch=ignore_mismatch)
+                mismatch+=set_param_value(params,values,ignore_mismatch=ignore_mismatch,resetparams=resetparams)
     if os.path.exists(prefix+'model-global-'+str(0)+'.npz'):
         if not os.path.exists(prefix+'model-global-'+str(0)+'.skip'):
             with np.load(prefix+'model-global-'+str(0)+'.npz') as f:
@@ -242,7 +249,7 @@ def load_params(layers,global_params,prefix='',partial=False,ignore_mismatch=Fal
             params=global_params
             if partial:
                 values=values[:len(params)]
-            mismatch+=set_param_value(params,values,ignore_mismatch=ignore_mismatch)
+            mismatch+=set_param_value(params,values,ignore_mismatch=ignore_mismatch,resetparams=[])
     return epoch,mismatch#}}}
 
 
@@ -1196,13 +1203,13 @@ def register_batches(batches):
 def layers(l):
     return macros(l)
 
-def newlayers(l):
+def paramlayers(layertype,l,h=None):
     res=()
     l=macros(l)
     i=0   
     for a in l:
-        #print a
-        assert a[-2]==0
+        if h is not None:
+            h(a)
         #m=dict(a[-1].copy())
         if type(a[-1]) == dict:
             m = a[-1].copy()
@@ -1213,28 +1220,22 @@ def newlayers(l):
         else:
             m = {}
             a = a+(m, )
-        m['saveparamlayer']='newlayer'
+        assert 'saveparamlayer' not in m
+        m['saveparamlayer']=layertype
         res+=(a[:-1]+(m,),)
     return res
 
+def newlayers_checker(a):
+    if a[-2]!=0:
+        print a
+    assert a[-2]==0
+def newlayers(l):
+    return paramlayers('newlayer',l,newlayers_checker)
 def deletelayers(l):
-    res=()
-    l=macros(l)
-    i=0   
-    for a in l:
-        #m=dict(a[-1].copy())
-        if type(a[-1]) == dict:
-            m = a[-1].copy()
-        elif type(a[-1]) == set:
-            m = {}
-            for t in a[-1]:
-                m[t] = True
-        else:
-            m = {}
-            a = a+(m, )
-        m['saveparamlayer']='deletelayer'
-        res+=(a[:-1]+(m,),)
-    return res
+    return paramlayers('deletelayer',l)
+def resetlayers(l):
+    return paramlayers('resetlayer',l)
+
 
 on_batch_finished=[]
 on_epoch_finished=[]
@@ -1454,10 +1455,13 @@ def run(args):
     #print 'mode',mode
     #print it
 
+    batch0 = None
+
     for X in it:
         #print X
         if type(X)==tuple:
             X,ids=X
+        batch0 = X
         for t in X:
             m[t]=X[t].shape
             dtypes[t]=X[t].dtype
@@ -1579,6 +1583,7 @@ def run(args):
             loading_networks_list+=[loading_networks]
 
     newlayers = conv_groups['newlayer'] if 'newlayer' in conv_groups else []
+    resetlayers = conv_groups['resetlayer'] if 'resetlayer' in conv_groups else []
     if args.weights != '':
         weights=os.path.join(args.save,args.weights+'-')
     elif args.snapshotPrefix !='':
@@ -1591,7 +1596,7 @@ def run(args):
         prefix=os.path.join(args.save,'')
     epoch_begin,mismatch=load_params([
         sorted_values(loading_networks) for loading_networks in loading_networks_list
-        ],[],weights,ignore_mismatch=True,newlayers=newlayers)
+        ],[],weights,ignore_mismatch=True,newlayers=newlayers,resetlayers=resetlayers)
     if args.weights != '':
         assert epoch_begin!=0
     logging.info('epoch_begin=%d'%epoch_begin)
@@ -1746,6 +1751,21 @@ def run(args):
 #        net.fit(X0,np.zeros((num_batchsize,),dtype=floatX))
 #    else:
 
+    for layer in lasagne.layers.get_all_layers(stacks['_all_']): #lasagne.layers.get_all_layers(layers+stacks['output']):
+        fn = theano.function(
+                map(lambda x:x.input_var,sorted_values(inputs)), 
+                T.as_tensor_variable(lasagne.layers.get_output(layer,deterministic=True)).shape,
+                on_unused_input='warn', 
+                allow_input_downcast=True,
+                )
+        shape1=lasagne.layers.get_output_shape(layer)
+        shape2=tuple(fn(*sorted_values(batch0)))
+        print '---',layer,'---'
+        print shape1,shape2
+        assert shape1==shape2
+    print 'output shape ok'
+
+
     if mode=='inference':
         if 'predict' in stacks:
             key='predict'
@@ -1758,7 +1778,11 @@ def run(args):
                     on_unused_input='warn', 
                     allow_input_downcast=True,
                     )
+        if inference_layers_fn is None:
             inference_layers = lasagne.layers.get_all_layers(layers)
+            for layer in inference_layers:
+                print layer
+                print type(lasagne.layers.get_output(layer,deterministic=True))
             inference_layers_fn = theano.function(
                     map(lambda x:x.input_var,sorted_values(inputs)), 
                     map(lambda x:lasagne.layers.get_output(x,deterministic=True),inference_layers),
@@ -1852,6 +1876,7 @@ def run(args):
                 err=None
                 while True:
                     stop=False
+                    nan_exit=False
                     for i in range(train_len):
                         try:
                             batch = next(train_it)
@@ -1879,6 +1904,10 @@ def run(args):
                         #print batch['target'].dtype
                         res=train_fn(*sorted_values(batch))
                         err=res[0]
+                        if np.isnan(err):
+                            print 'got nan.'
+                            nan_exit=True
+                            break
                         penalty=res[1]
                         errlist=res[2:]
                         train_err += err
@@ -1946,6 +1975,9 @@ def run(args):
                             logging.info("Training (epoch " + str(saveepoch-1+1.0*train_batches/num_batches) + "): " + string.replace(out.getvalue(),'\n',' '))
                         else:
                             logging.info("Training (epoch " + str(saveepoch) + "): " + string.replace(out.getvalue(),'\n',' '))
+
+                    if nan_exit:
+                        exit(1)
 
                     if stop:
                         if num_batches==0:
@@ -2101,7 +2133,7 @@ def run(args):
             if mode=='training':
                 if args.snapshotInterval>0:
                     if (saveepoch)%max(1,int(args.snapshotInterval))==0:
-                        logging.info('Snapshotting to %s'%(prefix+'epoch'+str(epoch+1)))
+                        logging.info('Snapshotting to %s'%(prefix+'epoch'+str(saveepoch)))
                         save_params(epoch+1,[
                             sorted_values(networks) for networks in all_networks
                             ],[],prefix+'epoch'+str(saveepoch)+'-',deletelayers=[])
